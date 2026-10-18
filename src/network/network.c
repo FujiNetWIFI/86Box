@@ -265,7 +265,7 @@ network_init(void)
 
     /* Initialize the Pcap system module, if present. */
 
-#ifndef FUJINET_ANDROID
+#ifndef NO_SLIRP
     network_devmap.has_slirp = 1;
 #endif
     i = net_pcap_prepare(&network_devs[network_ndev]);
@@ -539,7 +539,7 @@ network_attach(void *card_drv, uint8_t *mac, NETRXCB rx, NETSETLINKSTATE set_lin
     }
 
     switch (net_type) {
-#ifndef FUJINET_ANDROID
+#ifndef NO_SLIRP
         case NET_TYPE_SLIRP:
             card->host_drv      = net_slirp_drv;
             card->host_drv.priv = card->host_drv.init(card, mac, NULL, net_drv_error);

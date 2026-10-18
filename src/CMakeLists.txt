@@ -53,13 +53,15 @@ set(86BOX_SOURCES
     machine_status.c
 )
 
-if(FUJINET_ANDROID)
+if(FUJINET_ANDROID OR EMBEDDED_HOST)
     # msdos_core.cpp (the app's JNI bridge), not main(), owns the process
     # lifecycle. Built STATIC (not SHARED) so it links whole into the app's
     # single libmsdoscore.so instead of shipping as a second .so the app
     # would need to package and dynamically load separately.
     add_library(86Box STATIC ${86BOX_SOURCES})
-    target_compile_definitions(86Box PRIVATE FUJINET_ANDROID=1)
+    if(FUJINET_ANDROID)
+        target_compile_definitions(86Box PRIVATE FUJINET_ANDROID=1)
+    endif()
 else()
     add_executable(86Box ${86BOX_SOURCES})
 endif()
@@ -74,7 +76,10 @@ endif()
 
 if(GDBSTUB)
     add_compile_definitions(USE_GDBSTUB)
-    target_sources(86Box PRIVATE gdbstub.c)
+    # An embedding host implements the gdbstub_*() hooks with its own debugger.
+    if(NOT EMBEDDED_HOST)
+        target_sources(86Box PRIVATE gdbstub.c)
+    endif()
 endif()
 
 if(AUTOMATION)
@@ -211,6 +216,14 @@ find_package(PNG REQUIRED)
 include_directories(${PNG_INCLUDE_DIRS})
 target_link_libraries(86Box PNG::PNG)
 
+if(EMBEDDED_HOST)
+    # The embedder's project() owns CMAKE_PROJECT_*; report 86Box's own.
+    set(CMAKE_PROJECT_NAME 86Box)
+    set(CMAKE_PROJECT_VERSION ${86Box_VERSION})
+    set(CMAKE_PROJECT_VERSION_MAJOR ${86Box_VERSION_MAJOR})
+    set(CMAKE_PROJECT_VERSION_MINOR ${86Box_VERSION_MINOR})
+    set(CMAKE_PROJECT_VERSION_PATCH 0)
+endif()
 configure_file(include/86box/version.h.in include/86box/version.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
@@ -236,7 +249,9 @@ if(MINITRACE)
     target_link_libraries(86Box minitrace)
 endif()
 
-if(WIN32 OR (APPLE AND CMAKE_MACOSX_BUNDLE))
+if(FUJINET_ANDROID OR EMBEDDED_HOST)
+    # The embedding app installs itself.
+elseif(WIN32 OR (APPLE AND CMAKE_MACOSX_BUNDLE))
     # Copy the binary to the root of the install prefix on Windows and macOS
     install(TARGETS 86Box DESTINATION ".")
 else()
@@ -244,7 +259,7 @@ else()
     install(TARGETS 86Box)
 endif()
 
-if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+if(CMAKE_SYSTEM_NAME MATCHES "Linux" AND NOT (FUJINET_ANDROID OR EMBEDDED_HOST))
     include(GNUInstallDirs)
 
     set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/unix/assets")
@@ -292,7 +307,8 @@ endif()
 
 
 # Install other dependencies
-if(WIN32)
+if(FUJINET_ANDROID OR EMBEDDED_HOST)
+elseif(WIN32)
     install(CODE "
         include(BundleUtilities)
         get_filename_component(CMAKE_INSTALL_PREFIX_ABSOLUTE \${CMAKE_INSTALL_PREFIX} ABSOLUTE)
@@ -307,7 +323,8 @@ elseif(APPLE AND NOT QT)
 endif()
 
 # Install the PDB file on Windows builds
-if(MSVC)
+if(FUJINET_ANDROID OR EMBEDDED_HOST)
+elseif(MSVC)
     # CMake fully supports PDB files on MSVC-compatible compilers
     install(FILES $<TARGET_PDB_FILE:86Box>
         CONFIGURATIONS Debug RelWithDebInfo
@@ -338,14 +355,18 @@ add_subdirectory(sound)
 add_subdirectory(utils)
 add_subdirectory(video)
 
-if (APPLE)
+if (APPLE AND NOT EMBEDDED_HOST)
     add_subdirectory(mac)
 endif()
 
-add_subdirectory(osd)
+if (NOT (FUJINET_ANDROID OR EMBEDDED_HOST))
+    add_subdirectory(osd)
+endif()
 
 if (FUJINET_ANDROID)
     add_subdirectory(android)
+elseif (EMBEDDED_HOST)
+    add_subdirectory(${EMBEDDED_HOST_DIR} embedded_host)
 elseif (QT)
     add_subdirectory(qt)
 else()

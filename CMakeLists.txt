@@ -53,7 +53,12 @@ if (CMAKE_C_BYTE_ORDER STREQUAL "BIG_ENDIAN")
     message(FATAL_ERROR "Big-endian builds are not supported.")
 endif()
 
-include(CPack)
+option(EMBEDDED_HOST "Build 86Box as a static library for an embedding host" OFF)
+set(EMBEDDED_HOST_DIR "" CACHE PATH "Directory whose CMakeLists.txt provides the plat and ui targets")
+
+if(NOT EMBEDDED_HOST)
+    include(CPack)
+endif()
 include(CMakeDependentOption)
 include(FetchContent)
 

@@ -114,10 +114,9 @@ elseif(OPENAL)
     include_directories(${OPENAL_INCLUDE_DIR})
 
     target_sources(snd PRIVATE openal.c)
-elseif(FUJINET_ANDROID)
-    # inital()/closeal()/givealbuffer*() are provided by src/android/
-    # android_audio.c (forwards to the app's ring buffer via
-    # android_bridge.h) -- no xaudio2.c/FAudio fallback needed or wanted.
+elseif(FUJINET_ANDROID OR EMBEDDED_HOST)
+    # inital()/closeal()/givealbuffer*() come from the host's ui target
+    # (src/android/android_audio.c on Android) -- no XAudio2/FAudio.
 else()
     if(WIN32)
         option(FAUDIO "Use FAudio instead of XAudio2" OFF)
@@ -230,7 +229,7 @@ if(SOFTMODEM)
     target_compile_definitions(snd PRIVATE USE_SOFTMODEM)
 endif()
 
-if(NOT FUJINET_ANDROID)
+if(NOT (FUJINET_ANDROID OR EMBEDDED_HOST))
     find_package(PkgConfig)
     if(APPLE)
         pkg_check_modules(SERIALPORT IMPORTED_TARGET libserialport)

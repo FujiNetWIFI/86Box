@@ -45,14 +45,14 @@ list(APPEND net_sources
 # Android build gets its networking from FujiNet (a real serial device), not
 # an emulated NIC, so net_slirp.c and its pkg-config REQUIRED dependency are
 # dropped entirely rather than cross-built for no benefit.
-if(NOT FUJINET_ANDROID)
+if(NOT (FUJINET_ANDROID OR EMBEDDED_HOST))
     list(APPEND net_sources net_slirp.c)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(SLIRP REQUIRED IMPORTED_TARGET slirp)
     target_link_libraries(86Box PkgConfig::SLIRP)
 endif()
 
-if(WIN32)
+if(WIN32 AND TARGET PkgConfig::SLIRP)
     target_link_libraries(PkgConfig::SLIRP INTERFACE wsock32 ws2_32 iphlpapi)
     if (NOT MSVC)
         target_link_libraries(PkgConfig::SLIRP INTERFACE iconv)
@@ -96,6 +96,6 @@ if (UNIX AND NOT APPLE) # Support for TAP on Linux and BSD, supposedly.
 endif()
 
 add_library(net OBJECT ${net_sources})
-if(FUJINET_ANDROID)
-    target_compile_definitions(net PRIVATE FUJINET_ANDROID=1)
+if(FUJINET_ANDROID OR EMBEDDED_HOST)
+    target_compile_definitions(net PRIVATE NO_SLIRP=1)
 endif()
