@@ -178,11 +178,35 @@ serial_clear_timeout(serial_t *dev)
    byte - changing it to per-byte timing delays the byte movement so much
    that it goes way out of specification, even breaking the Windows 9x
    modem detection.
+
+   A host device that asks for flow control (CHAR_COM_RX_FLOW) is polled
+   once per character instead: the mouse case above is not its business.
  */
+static int
+serial_rx_flow(const serial_t *dev)
+{
+    return !!(dev->char_port.chardev.flags & CHAR_COM_RX_FLOW);
+}
+
 static double
 serial_receive_period(const serial_t *dev)
 {
+    if (serial_rx_flow(dev))
+        return (double) (dev->bits ? dev->bits : 10) * dev->transmit_period;
     return (double) /* (dev->bits ? dev->bits : 10) * */ dev->transmit_period;
+}
+
+/* Room for one more received character without an overrun: a free FIFO
+   slot, or an empty receive buffer register without the FIFO. None in
+   loopback, where the host's bytes would be thrown away. */
+static int
+serial_rx_room(const serial_t *dev)
+{
+    if (dev->mctrl & 0x10)
+        return 0;
+    if (dev->fifo_enabled)
+        return !fifo_get_full(dev->rcvr_fifo);
+    return !(dev->lsr & 0x01);
 }
 
 static void
@@ -196,17 +220,20 @@ serial_receive_timer(void *priv)
 
     /* Only read when the receive shift register is free: it still holds the
        previous byte until the code below moves it into the FIFO, so reading
-       unconditionally can overwrite input that was never delivered. */
-    if (dev->char_port.chardev.read && (dev->out_new == 0xffff)) {
+       unconditionally can overwrite input that was never delivered. With
+       flow control, the host also keeps it until the guest has made room:
+       nothing is lost, however late the guest polls. */
+    if (dev->char_port.chardev.read && (dev->out_new == 0xffff) && (!serial_rx_flow(dev) || serial_rx_room(dev))) {
         uint8_t val;
         if (dev->char_port.chardev.read(&val, sizeof(val), dev->char_port.chardev.priv) > 0)
             serial_write_fifo(dev, val);
     }
 
     /* The modem status lines do not change thousands of times a second, and
-       querying them is not free on every host. */
+       querying them is not free on every host. Flow-controlled devices tick
+       once a character, not once a bit, so ask them more often per tick. */
     dev->status_divider++;
-    if (dev->char_port.chardev.status && !(dev->status_divider & 0x3f)) {
+    if (dev->char_port.chardev.status && !(dev->status_divider & (serial_rx_flow(dev) ? 0x07 : 0x3f))) {
         uint8_t prev_msr = dev->msr;
         uint32_t flags = dev->char_port.chardev.status(dev->char_port.chardev.priv);
         uint8_t mask = CHAR_COM_CTS | CHAR_COM_DSR | CHAR_COM_RI | CHAR_COM_DCD;
@@ -1219,20 +1246,11 @@ serial_set_next_inst(int ni)
 void
 serial_standalone_init(void)
 {
-    /* ns16550_device, not ns8250_device: the fujinet char device
-     * (src/char/char_fujinet.c) has no way to know whether the guest has
-     * drained the byte currently latched in a non-FIFO UART's single-byte
-     * receive register (serial_receive_timer() overwrites it unconditionally
-     * on the next poll), so it's forced to pace delivery far below the
-     * configured baud rate to avoid overrunning it -- workable for a small
-     * fixed-size reply, but it throttles bulk transfers (e.g. a directory
-     * read through a FujiNet-mounted drive) to a crawl. A 16550's 16-byte
-     * receive FIFO absorbs ordinary scheduling jitter without needing that
-     * throttle, and FUJINET.SYS's own UART probe (fujinet-msdos/sys/id8250.c)
-     * already autodetects 16550A and enables its FIFO with no driver changes
-     * needed. Backward compatible with any software that only expects an
-     * 8250 (16550 is a superset), so this is a blanket upgrade rather than a
-     * FujiNet-port-specific one. */
+    /* ns16550_device, not ns8250_device: a 16-byte receive FIFO gives a
+     * polled guest slack on every port, and FUJINET.SYS's UART probe
+     * (fujinet-msdos/sys/id8250.c) finds the 16550A and turns it on. The
+     * 16550 is a superset of the 8250, so software that expects an 8250
+     * still works. */
     while (next_inst < (SERIAL_MAX - 1))
         device_add_inst(&ns16550_device, next_inst + 1);
 }

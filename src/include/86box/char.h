@@ -33,7 +33,8 @@ enum { /* port hotunpluggability tracking */
 enum { /* device flags */
        CHAR_LPT_USESTROBE = 0x1, /* only issue SPP write when STROBE is asserted */
        CHAR_LPT_NIBBLE    = 0x2, /* use nibble/4-bit/LapLink system for bidirectional communication over SPP */
-       CHAR_LPT_PTI       = 0x4  /* emulate Parallel Technologies DirectParallel FAST (Windows DCC) active cable */
+       CHAR_LPT_PTI       = 0x4, /* emulate Parallel Technologies DirectParallel FAST (Windows DCC) active cable */
+       CHAR_COM_RX_FLOW   = 0x8  /* serial: read() once a character, and only when the UART has room */
 };
 
 enum { /* port types */
