@@ -167,6 +167,9 @@ typedef struct {
  * for a receive buffer. */
 #define SLIP_PACING_MARGIN 4.0
 
+static char_fujinet_trace_t char_fujinet_trace;
+static int                  char_fujinet_links;
+
 /* Real nanoseconds per byte at the port's current baud/format (10 bits/byte
  * for the universal 8N1 case; close enough for other formats too), inflated
  * by SLIP_PACING_MARGIN -- see its comment. */
@@ -184,6 +187,8 @@ char_fujinet_disconnect(char_fujinet_t *dev)
         plat_netsocket_close(dev->sock);
         dev->sock = (SOCKET) -1;
     }
+    if (dev->state == FUJINET_STATE_CONNECTED)
+        char_fujinet_links--;
     dev->state = FUJINET_STATE_DISCONNECTED;
     char_update_status(dev->port);
 }
@@ -217,6 +222,7 @@ char_fujinet_poll_connect(char_fujinet_t *dev)
             int connected = plat_netsocket_connected(dev->sock);
             if (connected == 1) {
                 dev->state = FUJINET_STATE_CONNECTED;
+                char_fujinet_links++;
                 char_fujinet_log(dev->log, "Connected\n");
                 char_update_status(dev->port);
             } else if (connected == -1) {
@@ -231,6 +237,19 @@ char_fujinet_poll_connect(char_fujinet_t *dev)
         default:
             break;
     }
+}
+
+/* Byte tap for an embedding host's debugger: dir 0 = to the guest, 1 = from it. */
+void
+char_fujinet_set_trace(char_fujinet_trace_t cb)
+{
+    char_fujinet_trace = cb;
+}
+
+int
+char_fujinet_connected(void)
+{
+    return char_fujinet_links;
 }
 
 static size_t
@@ -284,6 +303,9 @@ char_fujinet_read(uint8_t *buf, size_t len, void *priv)
     if (buf[0] == SLIP_END_BYTE)
         dev->resend_slip_end_until_ns = now + SLIP_END_GUARD_NS;
 
+    if (char_fujinet_trace)
+        char_fujinet_trace(0, buf, (size_t) ret);
+
     return (size_t) ret;
 }
 
@@ -304,6 +326,9 @@ char_fujinet_write(uint8_t *buf, size_t len, void *priv)
         }
         return 0;
     }
+
+    if (char_fujinet_trace)
+        char_fujinet_trace(1, buf, (size_t) ret);
 
     return (size_t) ret;
 }

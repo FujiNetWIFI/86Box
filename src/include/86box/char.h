@@ -160,4 +160,8 @@ extern const device_t char_loopback_com_device;
 extern const device_t char_loopback_lpt_device;
 extern const device_t char_fujinet_com_device;
 
+typedef void (*char_fujinet_trace_t)(int dir, const uint8_t *buf, size_t len);
+extern void char_fujinet_set_trace(char_fujinet_trace_t cb);
+extern int  char_fujinet_connected(void);
+
 #endif /*EMU_CHAR_H*/

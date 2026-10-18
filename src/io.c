@@ -32,6 +32,7 @@
 #include <86box/m_amstrad.h>
 #include <86box/pci.h>
 #include <86box/sio.h>
+#include <86box/gdbstub.h>
 
 #define NPORTS 65536 /* PC/AT supports 64K ports */
 
@@ -398,6 +399,7 @@ inb(uint16_t port)
     if ((port & 0xfff8) == 0x0200)
         fdc37mx0x_watchdog_reset_ext(0);
 
+    GDBSTUB_IO_ACCESS(port, GDBSTUB_IO_READ, 1, ret);
     return ret;
 }
 
@@ -412,6 +414,7 @@ outb(uint16_t port, uint8_t val)
 #endif
 
     io_port = port;
+    GDBSTUB_IO_ACCESS(port, GDBSTUB_IO_WRITE, 1, val);
     io_val  = val;
 
 #ifdef USE_DEBUG_REGS_486
@@ -539,6 +542,7 @@ inw(uint16_t port)
     if ((port & 0xfff8) == 0x0200)
         fdc37mx0x_watchdog_reset_ext(0);
 
+    GDBSTUB_IO_ACCESS(port, GDBSTUB_IO_READ, 2, ret);
     return ret;
 }
 
@@ -553,6 +557,7 @@ outw(uint16_t port, uint16_t val)
 #endif
 
     io_port = port;
+    GDBSTUB_IO_ACCESS(port, GDBSTUB_IO_WRITE, 2, val);
     io_val  = val;
 
 #ifdef USE_DEBUG_REGS_486
@@ -727,6 +732,7 @@ inl(uint16_t port)
     if ((port & 0xfff8) == 0x0200)
         fdc37mx0x_watchdog_reset_ext(0);
 
+    GDBSTUB_IO_ACCESS(port, GDBSTUB_IO_READ, 4, ret);
     return ret;
 }
 
@@ -741,6 +747,7 @@ outl(uint16_t port, uint32_t val)
 #endif
 
     io_port = port;
+    GDBSTUB_IO_ACCESS(port, GDBSTUB_IO_WRITE, 4, val);
     io_val  = val;
 
 #ifdef USE_DEBUG_REGS_486

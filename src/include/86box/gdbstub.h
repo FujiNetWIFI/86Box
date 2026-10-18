@@ -21,6 +21,9 @@
 #define GDBSTUB_MEM_WRITE  16
 #define GDBSTUB_MEM_AWATCH 32
 
+#define GDBSTUB_IO_READ  0
+#define GDBSTUB_IO_WRITE 1
+
 enum {
     GDBSTUB_EXEC         = 0,
     GDBSTUB_SSTEP        = 1,
@@ -48,8 +51,13 @@ enum {
         if (gdbstub_watch_pages[gdbstub_page >> 6] & (1ULL << (gdbstub_page & 63))) \
             gdbstub_mem_access((addrs), (access) | (width));
 
+#    define GDBSTUB_IO_ACCESS(port, access, width, val)                 \
+        if (gdbstub_watch_io[(port) >> 6] & (1ULL << ((port) & 63))) \
+            gdbstub_io_access((port), (access), (width), (val));
+
 extern int      gdbstub_step, gdbstub_next_asap;
 extern uint64_t gdbstub_watch_pages[(((uint32_t) -1) >> (MEM_GRANULARITY_BITS + 6)) + 1];
+extern uint64_t gdbstub_watch_io[65536 / 64];
 
 /* Whether addr is in a granule with a watchpoint. Such granules must stay out of the
    CPU's memory lookup cache, or accesses through it would skip the watchpoint checks. */
@@ -61,6 +69,7 @@ extern void gdbstub_poll(void);
 extern int  gdbstub_instruction(void);
 extern int  gdbstub_int3(void);
 extern void gdbstub_mem_access(uint32_t *addrs, int access);
+extern void gdbstub_io_access(uint16_t port, int access, int width, uint32_t val);
 extern void gdbstub_init(void);
 extern void gdbstub_close(void);
 
@@ -69,6 +78,7 @@ extern void gdbstub_close(void);
 #    define GDBSTUB_MEM_ACCESS(addr, access, width)
 #    define GDBSTUB_MEM_ACCESS_FAST(addrs, access, width)
 #    define GDBSTUB_WATCHED(addr) 0
+#    define GDBSTUB_IO_ACCESS(port, access, width, val)
 
 #    define gdbstub_step      0
 #    define gdbstub_next_asap 0

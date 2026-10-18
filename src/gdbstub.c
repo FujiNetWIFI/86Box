@@ -355,6 +355,13 @@ static gdbstub_breakpoint_t *first_awatch = NULL;
 int      gdbstub_step = 0;
 int      gdbstub_next_asap = 0;
 uint64_t gdbstub_watch_pages[(((uint32_t) -1) >> (MEM_GRANULARITY_BITS + 6)) + 1];
+uint64_t gdbstub_watch_io[65536 / 64];
+
+/* GDB has no I/O watchpoints; the bitmap is for embedding hosts. */
+void
+gdbstub_io_access(UNUSED(uint16_t port), UNUSED(int access), UNUSED(int width), UNUSED(uint32_t val))
+{
+}
 
 static void
 gdbstub_break(void)
