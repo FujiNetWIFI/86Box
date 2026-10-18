@@ -40,6 +40,9 @@ plat_netsocket_create(int type)
 
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &yes, sizeof(yes));
+#ifdef SO_NOSIGPIPE
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, (char *) &yes, sizeof(yes));
+#endif
 
     return fd;
 }
@@ -76,6 +79,9 @@ plat_netsocket_create_server(int type, unsigned short port)
 
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &yes, sizeof(yes));
+#ifdef SO_NOSIGPIPE
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, (char *) &yes, sizeof(yes));
+#endif
 
     return fd;
 }
@@ -175,7 +181,13 @@ plat_netsocket_connect(SOCKET socket, const char *hostname, unsigned short port)
 int
 plat_netsocket_send(SOCKET socket, const unsigned char *data, unsigned int size, int *wouldblock)
 {
+#ifdef MSG_NOSIGNAL
+    /* A peer that has gone away is an error to report, not a signal that
+       ends the process. */
+    int res = send(socket, (const char *) data, size, MSG_NOSIGNAL);
+#else
     int res = send(socket, (const char *) data, size, 0);
+#endif
 
     if (res == -1) {
         int error = errno;
