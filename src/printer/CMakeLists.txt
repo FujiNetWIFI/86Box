@@ -30,9 +30,18 @@ if(APPLE)
     endif()
 endif()
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(FREETYPE REQUIRED IMPORTED_TARGET freetype2)
-target_link_libraries(86Box PkgConfig::FREETYPE)
+if(FUJINET_ANDROID)
+    # Freetype is already linked into 86Box via the top-level
+    # find_package(Freetype REQUIRED) (src/CMakeLists.txt), which is pinned
+    # to the cross-compiled static lib via FREETYPE_LIBRARY/
+    # FREETYPE_INCLUDE_DIR_* (app/src/main/cpp/CMakeLists.txt). A second,
+    # unpinned pkg-config lookup here would silently resolve to the build
+    # host's own freetype2.pc instead (wrong ISA).
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(FREETYPE REQUIRED IMPORTED_TARGET freetype2)
+    target_link_libraries(86Box PkgConfig::FREETYPE)
+endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
 	target_include_directories(print PRIVATE /usr/local/include)
 	target_include_directories(print PRIVATE /usr/local/include/freetype2)

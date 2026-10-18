@@ -1149,8 +1149,22 @@ serial_set_next_inst(int ni)
 void
 serial_standalone_init(void)
 {
+    /* ns16550_device, not ns8250_device: the fujinet char device
+     * (src/char/char_fujinet.c) has no way to know whether the guest has
+     * drained the byte currently latched in a non-FIFO UART's single-byte
+     * receive register (serial_receive_timer() overwrites it unconditionally
+     * on the next poll), so it's forced to pace delivery far below the
+     * configured baud rate to avoid overrunning it -- workable for a small
+     * fixed-size reply, but it throttles bulk transfers (e.g. a directory
+     * read through a FujiNet-mounted drive) to a crawl. A 16550's 16-byte
+     * receive FIFO absorbs ordinary scheduling jitter without needing that
+     * throttle, and FUJINET.SYS's own UART probe (fujinet-msdos/sys/id8250.c)
+     * already autodetects 16550A and enables its FIFO with no driver changes
+     * needed. Backward compatible with any software that only expects an
+     * 8250 (16550 is a superset), so this is a blanket upgrade rather than a
+     * FujiNet-port-specific one. */
     while (next_inst < (SERIAL_MAX - 1))
-        device_add_inst(&ns8250_device, next_inst + 1);
+        device_add_inst(&ns16550_device, next_inst + 1);
 }
 
 const device_t ns8250_device = {

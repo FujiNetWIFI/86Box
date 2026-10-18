@@ -34,6 +34,11 @@
 #define FUJINET_DEFAULT_HOST "127.0.0.1"
 #define FUJINET_DEFAULT_PORT 1987
 
+/* SLIP frame delimiter (RFC 1055) -- fujinet-msdos/sys/portio.asm's
+ * SLIP_END and fujinet-firmware's FujiBusPacket.h's SLIP_END agree on the
+ * same value. */
+#define SLIP_END_BYTE 0xC0
+
 #ifdef ENABLE_CHAR_FUJINET_LOG
 int char_fujinet_do_log = ENABLE_CHAR_FUJINET_LOG;
 
@@ -72,7 +77,105 @@ typedef struct {
      * the serial port's receive/transmit timers. */
     char     host[256];
     int      port_num;
+
+    /* Byte-rate pacing: serial.c's receive_timer re-arms itself at the bit
+     * period, not the byte period (src/device/serial.c's own comment:
+     * "/ * dev->bits * / dev->transmit_period" -- the multiply is disabled),
+     * so it polls chardev.read() roughly 10x more often than one byte takes
+     * to arrive over a real 8N1 link. That's harmless for a real serial
+     * peripheral, which only ever has a fresh byte ready once per true wire
+     * byte-period regardless of how often it's asked. A TCP socket has no
+     * such natural pacing: an entire reply can already be sitting in the
+     * kernel receive buffer the instant BoIP delivers it, so an unthrottled
+     * read() here drains it ~10x faster than the configured baud allows --
+     * overrunning the emulated UART's single-byte receive register (each
+     * new byte silently clobbers the last, since 8250 non-FIFO mode has no
+     * hardware flow control) faster than the guest can poll LSR and read it.
+     * Pace delivery to one byte per real byte-period (from the port's live
+     * baud/format, defaulting to 115200 8N1 before the guest configures the
+     * UART) so this device behaves like the real, naturally-paced serial
+     * hardware serial.c's receive_timer was designed around. */
+    uint64_t next_byte_ns;
+
+    /* Every FujiBusPacket starts with a SLIP_END sync byte, and the guest's
+     * own decoder (port_getbuf_slip_dual.asm) explicitly tolerates repeated
+     * leading SLIP_END bytes for exactly this reason: the very first byte
+     * of a session is uniquely vulnerable to a guest-side cold-start race --
+     * fuji_bus_call()'s own setup code runs before the DOS driver's polling
+     * loop ever looks at LSR, and that startup latency can outlast several
+     * byte-periods, so the first paced byte(s) can go unread and get
+     * silently clobbered (8250 non-FIFO has no flow control) before the
+     * guest ever polls. Once that leading SLIP_END is lost, the guest's
+     * sync phase has no frame start to lock onto until the *closing*
+     * SLIP_END, by which point there's no data left -- a complete,
+     * checksum-valid packet that can never be parsed. Hold the leading
+     * SLIP_END for a real-time guard window, not just one extra
+     * byte-period, so it's still there whenever the guest actually starts
+     * polling. */
+    uint64_t resend_slip_end_until_ns;
 } char_fujinet_t;
+
+/* Guard window: how long to keep re-offering the leading SLIP_END before
+ * letting the real frame content proceed. Comfortably longer than any
+ * plausible fuji_bus_call() setup latency, negligible next to FUJICOM's own
+ * 15-second reply timeout (TIMEOUT_SLOW, sys/fujicom.c). */
+#define SLIP_END_GUARD_NS (50ULL * 1000ULL * 1000ULL) /* 50ms */
+
+/* Safety margin over the nominal wire byte-period: three layers of real-time
+ * pacing are stacked here (this gate, 86Box's own CPU-cycle-driven serial
+ * timer, and the Android platform loop that paces CPU emulation to real
+ * time in the first place), and each has some scheduling jitter. FUJICOM's
+ * decode loop (port_getbuf_slip_dual.asm) does real work between bytes --
+ * SLIP-unescaping, buffer writes, loop bookkeeping -- so pacing at exactly
+ * the nominal 115200-baud byte period leaves it no slack: an occasional
+ * slightly-late poll silently overwrites the byte it was about to read (no
+ * hardware flow control in 8250 non-FIFO mode). Bandwidth is not a
+ * constraint here -- even a ~150-byte reply at several times the nominal
+ * period still finishes in well under a second, against FUJICOM's
+ * 15-second reply timeout (TIMEOUT_SLOW, sys/fujicom.c) -- so pace
+ * generously rather than chase exact 115200-baud realism.
+ *
+ * This device has no way to know whether the guest has actually drained the
+ * byte currently latched in the UART's single-byte, non-FIFO receive
+ * register (src/device/serial.c's serial_receive_timer() overwrites it
+ * unconditionally once we hand over a new one -- accurate to how a real
+ * 8250 behaves on overrun, but it means *some* fixed real-time gap between
+ * bytes is the only guard this device can offer against a guest poll that's
+ * occasionally a bit later than usual, e.g. from Android scheduler jitter
+ * on the emulator's own host thread).
+ *
+ * IMPORTANT: this margin applies to every byte this device ever sends, for
+ * the lifetime of the connection -- not just the vulnerable cold-start
+ * bytes the SLIP_END guard window above exists for. Inflating it trades
+ * throughput directly (at SLIP_PACING_MARGIN=300 this device delivered a
+ * real ~38 bytes/sec, turning anything beyond a small fixed-size reply --
+ * e.g. a directory listing read through a FujiNet-mounted drive, many BoIP
+ * round trips of real payload, not one ~150-byte GET_ADAPTERCONFIG reply --
+ * into a multi-minute stall), and it turned out to be the wrong tool for
+ * the job: real-hardware testing at low margins (6x-8x, no better than
+ * plain 8250) still failed ~40% of the time even with the guard window
+ * covering the leading SLIP_END, meaning ordinary Android scheduler jitter
+ * was dropping bytes throughout a transfer, not just the first one -- and
+ * this device has no way to buffer against that on its own.
+ *
+ * The real fix is serial.c's serial_standalone_init() now handing out a
+ * 16550 instead of an 8250: its 16-byte hardware receive FIFO absorbs that
+ * jitter directly (FUJINET.SYS's own UART probe, fujinet-msdos/sys/
+ * id8250.c, autodetects 16550A and enables the FIFO itself, no driver
+ * changes needed), so this margin's job goes back to what it should always
+ * have been -- a small cushion over the nominal wire rate, not a stand-in
+ * for a receive buffer. */
+#define SLIP_PACING_MARGIN 4.0
+
+/* Real nanoseconds per byte at the port's current baud/format (10 bits/byte
+ * for the universal 8N1 case; close enough for other formats too), inflated
+ * by SLIP_PACING_MARGIN -- see its comment. */
+static uint64_t
+char_fujinet_byte_period_ns(char_fujinet_t *dev)
+{
+    uint32_t baud = (dev->port && dev->port->com.baud) ? dev->port->com.baud : 115200;
+    return (uint64_t) ((SLIP_PACING_MARGIN * 10.0 * 1e9) / (double) baud);
+}
 
 static void
 char_fujinet_disconnect(char_fujinet_t *dev)
@@ -140,8 +243,29 @@ char_fujinet_read(uint8_t *buf, size_t len, void *priv)
     if (dev->state != FUJINET_STATE_CONNECTED)
         return 0;
 
+    /* Not due for a new byte yet - see the pacing comment on next_byte_ns.
+     * Deliberately leave any waiting bytes queued in the kernel socket
+     * buffer rather than draining them into our own buffer here; TCP holds
+     * them safely, and it keeps this function's only job to be "how many
+     * bytes are we allowed to hand over right now". */
+    uint64_t now = plat_timer_read();
+    if (now < dev->next_byte_ns)
+        return 0;
+
+    if (len < 1)
+        return 0;
+
+    if (now < dev->resend_slip_end_until_ns) {
+        /* Still inside the leading-SLIP_END guard window - keep re-offering
+         * it instead of consuming a new socket byte, in case the guest
+         * hasn't started polling yet. See the guard-window comment above. */
+        buf[0]             = SLIP_END_BYTE;
+        dev->next_byte_ns   = now + char_fujinet_byte_period_ns(dev);
+        return 1;
+    }
+
     int wouldblock = 0;
-    int ret         = plat_netsocket_receive(dev->sock, buf, (unsigned int) len, &wouldblock);
+    int ret         = plat_netsocket_receive(dev->sock, buf, 1, &wouldblock);
     if (ret < 0) {
         if (!wouldblock) {
             char_fujinet_log(dev->log, "recv() error, disconnecting\n");
@@ -155,6 +279,10 @@ char_fujinet_read(uint8_t *buf, size_t len, void *priv)
         char_fujinet_disconnect(dev);
         return 0;
     }
+
+    dev->next_byte_ns = now + char_fujinet_byte_period_ns(dev);
+    if (buf[0] == SLIP_END_BYTE)
+        dev->resend_slip_end_until_ns = now + SLIP_END_GUARD_NS;
 
     return (size_t) ret;
 }

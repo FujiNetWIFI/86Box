@@ -24,7 +24,7 @@ if(APPLE)
     set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
 
-add_executable(86Box
+set(86BOX_SOURCES
     86box.c
     config.c
     timer.c
@@ -51,6 +51,17 @@ add_executable(86Box
     nvr_ps2.c
     machine_status.c
 )
+
+if(FUJINET_ANDROID)
+    # msdos_core.cpp (the app's JNI bridge), not main(), owns the process
+    # lifecycle. Built STATIC (not SHARED) so it links whole into the app's
+    # single libmsdoscore.so instead of shipping as a second .so the app
+    # would need to package and dynamically load separately.
+    add_library(86Box STATIC ${86BOX_SOURCES})
+    target_compile_definitions(86Box PRIVATE FUJINET_ANDROID=1)
+else()
+    add_executable(86Box ${86BOX_SOURCES})
+endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     add_compile_definitions(_FILE_OFFSET_BITS=64 _LARGEFILE_SOURCE=1 _LARGEFILE64_SOURCE=1)
@@ -186,6 +197,9 @@ if(APPLE)
     # Freetype is dynamically loaded by the emulator, however, we link it
     # on macOS so it gets copied to the bundle by the installation process
     target_link_libraries(86Box Freetype::Freetype)
+elseif(FUJINET_ANDROID)
+    # No dlopen-at-runtime story on Android; link the cross-compiled static lib.
+    target_link_libraries(86Box Freetype::Freetype)
 endif()
 
 find_package(PNG REQUIRED)
@@ -289,7 +303,9 @@ endif()
 
 add_subdirectory(osd)
 
-if (QT)
+if (FUJINET_ANDROID)
+    add_subdirectory(android)
+elseif (QT)
     add_subdirectory(qt)
 else()
     add_compile_definitions(USE_SDL_UI)

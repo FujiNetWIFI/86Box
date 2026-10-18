@@ -19,10 +19,6 @@ set(WITH_SYSTEM_ZLIB ON)
 set(WITH_SYSTEM_ZSTD ON)
 add_subdirectory(libchdr)
 
-find_package(PkgConfig REQUIRED)
-
-pkg_check_modules(SNDFILE REQUIRED IMPORTED_TARGET sndfile)
-
 add_library(cdrom OBJECT
     cdrom.c
     cdrom_aaru.c
@@ -33,20 +29,33 @@ add_library(cdrom OBJECT
     cdrom_image_ccd.c
 )
 target_link_libraries(cdrom chdr-static)
-if(NOT WIN32)
-	target_include_directories(86Box PRIVATE PkgConfig::SNDFILE)
+
+if(FUJINET_ANDROID)
+    # Cross-compiled libsndfile (tools/86box/build-86box-core.sh), pinned via
+    # SNDFILE_LIBRARY/_INCLUDE_DIR cache vars set in app/src/main/cpp/
+    # CMakeLists.txt -- a plain pkg-config lookup here would otherwise
+    # silently resolve to the build host's own sndfile.pc (wrong ISA).
+    target_include_directories(cdrom PRIVATE "${SNDFILE_INCLUDE_DIR}")
+    target_link_libraries(86Box "${SNDFILE_LIBRARY}")
+else()
+    find_package(PkgConfig REQUIRED)
+
+    pkg_check_modules(SNDFILE REQUIRED IMPORTED_TARGET sndfile)
+    if(NOT WIN32)
+        target_include_directories(86Box PRIVATE PkgConfig::SNDFILE)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+        target_include_directories(cdrom PRIVATE /usr/local/include)
+    endif()
+    target_link_libraries(86Box PkgConfig::SNDFILE)
 endif()
-if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-	target_include_directories(cdrom PRIVATE /usr/local/include)
-endif()
-target_link_libraries(86Box PkgConfig::SNDFILE)
 
 if(CDROM_MITSUMI)
     target_compile_definitions(cdrom PRIVATE USE_CDROM_MITSUMI)
     target_sources(cdrom PRIVATE cdrom_mitsumi.c)
 endif()
 
-if (WIN32)
+if (WIN32 AND NOT FUJINET_ANDROID)
     # MSYS2
     target_link_libraries(86Box -static ${SNDFILE_STATIC_LIBRARIES})
 endif()

@@ -2,6 +2,18 @@
 
 #    include <stdlib.h>
 #    include <stdint.h>
+
+/* On Android (bionic), unistd.h pulls in signal.h -> asm/sigcontext.h, whose
+ * x86-64 sigcontext struct has fields literally named gs/fs/cs/ds/es/ss --
+ * cpu.h's cs/ds/es/ss/fs_seg/gs segment-base macros below corrupt that struct
+ * if cpu.h is included first, so pull unistd.h/sys/mman.h in before cpu.h
+ * here instead of after (as the Linux/macOS glibc/Darwin libc headers, whose
+ * transitively-included headers don't collide, do below). */
+#    if defined(__ANDROID__)
+#        include <sys/mman.h>
+#        include <unistd.h>
+#    endif
+
 #    include <86box/86box.h>
 #    include "cpu.h"
 #    include <86box/mem.h>
@@ -18,7 +30,10 @@
 #    include "x86seg_common.h"
 #    include "x86seg.h"
 
-#    if defined(__linux__) || defined(__APPLE__)
+#    if defined(__linux__) && !defined(__ANDROID__)
+#        include <sys/mman.h>
+#        include <unistd.h>
+#    elif defined(__APPLE__)
 #        include <sys/mman.h>
 #        include <unistd.h>
 #    endif

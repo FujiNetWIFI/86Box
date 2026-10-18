@@ -18,7 +18,6 @@ set(net_sources)
 list(APPEND net_sources
     network.c
     net_pcap.c
-    net_slirp.c
     net_switch.c
     net_dp8390.c
     net_3c501.c
@@ -38,9 +37,16 @@ list(APPEND net_sources
     utils/getline.c
 )
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(SLIRP REQUIRED IMPORTED_TARGET slirp)
-target_link_libraries(86Box PkgConfig::SLIRP)
+# libslirp is meson-only and awkward to cross-compile under the NDK. The
+# Android build gets its networking from FujiNet (a real serial device), not
+# an emulated NIC, so net_slirp.c and its pkg-config REQUIRED dependency are
+# dropped entirely rather than cross-built for no benefit.
+if(NOT FUJINET_ANDROID)
+    list(APPEND net_sources net_slirp.c)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SLIRP REQUIRED IMPORTED_TARGET slirp)
+    target_link_libraries(86Box PkgConfig::SLIRP)
+endif()
 
 if(WIN32)
     target_link_libraries(PkgConfig::SLIRP INTERFACE wsock32 ws2_32 iphlpapi)
@@ -86,3 +92,6 @@ if (UNIX AND NOT APPLE) # Support for TAP on Linux and BSD, supposedly.
 endif()
 
 add_library(net OBJECT ${net_sources})
+if(FUJINET_ANDROID)
+    target_compile_definitions(net PRIVATE FUJINET_ANDROID=1)
+endif()
