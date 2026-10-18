@@ -170,6 +170,17 @@ typedef struct {
 static char_fujinet_trace_t char_fujinet_trace;
 static int                  char_fujinet_links;
 
+/* plat_timer_read() counts timer_freq ticks (QueryPerformanceCounter on
+ * Windows); some hosts never set timer_freq and return nanoseconds. */
+static uint64_t
+char_fujinet_now_ns(void)
+{
+    uint64_t t = plat_timer_read();
+    if (!timer_freq || timer_freq == 1000000000ULL)
+        return t;
+    return (t / timer_freq) * 1000000000ULL + ((t % timer_freq) * 1000000000ULL) / timer_freq;
+}
+
 /* Real nanoseconds per byte at the port's current baud/format (10 bits/byte
  * for the universal 8N1 case; close enough for other formats too), inflated
  * by SLIP_PACING_MARGIN -- see its comment. */
@@ -267,7 +278,7 @@ char_fujinet_read(uint8_t *buf, size_t len, void *priv)
      * buffer rather than draining them into our own buffer here; TCP holds
      * them safely, and it keeps this function's only job to be "how many
      * bytes are we allowed to hand over right now". */
-    uint64_t now = plat_timer_read();
+    uint64_t now = char_fujinet_now_ns();
     if (now < dev->next_byte_ns)
         return 0;
 
