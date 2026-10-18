@@ -354,6 +354,7 @@ static gdbstub_breakpoint_t *first_awatch = NULL;
 
 int      gdbstub_step = 0;
 int      gdbstub_next_asap = 0;
+int      gdbstub_interpreter_only = 1;
 uint64_t gdbstub_watch_pages[(((uint32_t) -1) >> (MEM_GRANULARITY_BITS + 6)) + 1];
 uint64_t gdbstub_watch_io[65536 / 64];
 

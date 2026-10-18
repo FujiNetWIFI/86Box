@@ -56,6 +56,10 @@ enum {
             gdbstub_io_access((port), (access), (width), (val));
 
 extern int      gdbstub_step, gdbstub_next_asap;
+/* The recompiler skips the per-instruction hooks. GDB's stub always wants the
+   interpreter; an embedding host can keep the recompiler and set
+   cpu_force_interpreter while it debugs. */
+extern int      gdbstub_interpreter_only;
 extern uint64_t gdbstub_watch_pages[(((uint32_t) -1) >> (MEM_GRANULARITY_BITS + 6)) + 1];
 extern uint64_t gdbstub_watch_io[65536 / 64];
 
@@ -82,6 +86,7 @@ extern void gdbstub_close(void);
 
 #    define gdbstub_step      0
 #    define gdbstub_next_asap 0
+#    define gdbstub_interpreter_only 0
 
 #    define gdbstub_cpu_init()
 #    define gdbstub_poll()
