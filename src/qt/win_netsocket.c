@@ -33,6 +33,7 @@ plat_netsocket_create(int type)
         return -1;
 
     ioctlsocket(socket, FIONBIO, &yes);
+    setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, (char *) &yes, sizeof(yes));
 
     return socket;
 }
@@ -68,6 +69,7 @@ plat_netsocket_create_server(int type, unsigned short port)
     }
 
     ioctlsocket(socket, FIONBIO, &yes);
+    setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, (char *) &yes, sizeof(yes));
 
     return socket;
 }
