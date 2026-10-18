@@ -55,7 +55,7 @@ static const device_config_t p54tp4xe_config[] = {
         .selection      = { { 0 } },
         .bios           = {
             {
-                .name          = "Award Modular BIOS v4.51PG - Revision 0302",
+                .name          = "AwardBIOS v4.51PG - Revision 0302",
                 .internal_name = "p54tp4xe",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -197,9 +197,8 @@ machine_at_holly_init(const machine_t *model) /* HP Pavilion Holly, 7070/7090/51
 {
     int ret;
 
-    ret = bios_load_linear_combined("roms/machines/holly/1005CA2L.BIO",
-                                    "roms/machines/holly/1005CA2L.BI1",
-                                    0x20000, 128);
+    ret = bios_load_intel("roms/machines/holly/1005CA2L.BIO", NULL,
+                          131072, 1);
 
     if (bios_only || !ret)
         return ret;
@@ -446,9 +445,8 @@ machine_at_atlantis_init(const machine_t *model)
 {
     int ret;
 
-    ret = bios_load_linear_combined("roms/machines/atlantis/1007CL0_.BIO",
-                                    "roms/machines/atlantis/1007CL0_.BI1",
-                                    0x20000, 128);
+    ret = bios_load_intel("roms/machines/atlantis/1007CL0_.BIO", NULL,
+                          131072, 1);
 
     if (bios_only || !ret)
         return ret;
@@ -592,7 +590,6 @@ machine_at_thor_init(const machine_t *model)
 {
     int         ret = 0;
     const char *fn;
-    const char *fn2;
 
     /* No ROMs available */
     if (!device_available(model->device))
@@ -604,10 +601,8 @@ machine_at_thor_init(const machine_t *model)
     fn            = device_get_bios_file(machine_get_device(machine), device_get_config_bios("bios"), 0);
     if (is_mr)
         ret = bios_load_linear(fn, 0x000e0000, 131072, 0);
-    else {
-        fn2 = device_get_bios_file(machine_get_device(machine), device_get_config_bios("bios"), 1);
-        ret = bios_load_linear_combined(fn, fn2, 0x20000, 128);
-    }
+    else
+        ret = bios_load_intel(fn, NULL, 131072, 1);
     device_context_restore();
 
     machine_at_common_init(model);
@@ -730,9 +725,8 @@ machine_at_endeavor_init(const machine_t *model)
 {
     int ret;
 
-    ret = bios_load_linear_combined("roms/machines/endeavor/1006cb0_.bio",
-                                    "roms/machines/endeavor/1006cb0_.bi1",
-                                    0x1d000, 128);
+    ret = bios_load_intel("roms/machines/endeavor/1006cb0_.bio", NULL,
+                          131072, 1);
 
     if (bios_only || !ret)
         return ret;
@@ -838,7 +832,6 @@ machine_at_monaco_init(const machine_t *model)
 {
     int         ret = 0;
     const char *fn;
-    const char *fn2;
 
     /* No ROMs available */
     if (!device_available(model->device))
@@ -846,8 +839,7 @@ machine_at_monaco_init(const machine_t *model)
 
     device_context(model->device);
     fn  = device_get_bios_file(machine_get_device(machine), device_get_config_bios("bios"), 0);
-    fn2 = device_get_bios_file(machine_get_device(machine), device_get_config_bios("bios"), 1);
-    ret = bios_load_linear_combined(fn, fn2, 0x20000, 128);
+    ret = bios_load_intel(fn, NULL, 131072, 1);
     device_context_restore();
 
     machine_at_common_init(model);
@@ -896,7 +888,7 @@ static const device_config_t ms5119_config[] = {
                 .files         = { "roms/machines/ms5119/A37EB.ROM", "" }
             },
             {
-                .name          = "Award Modular BIOS v4.51PG - Release 2.3 (by Rainbow)",
+                .name          = "AwardBIOS v4.51PG - Release 2.3 (by Rainbow)",
                 .internal_name = "ms5119_451pg",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -996,8 +988,8 @@ machine_at_pb640_init(const machine_t *model)
 {
     int ret;
 
-    ret = bios_load_linear_combined("roms/machines/pb640/1007CP0R.BIO",
-                                    "roms/machines/pb640/1007CP0R.BI1", 0x1d000, 128);
+    ret = bios_load_intel("roms/machines/pb640/1007CP0R.BIO", NULL,
+                          131072, 1);
 
     if (bios_only || !ret)
         return ret;
@@ -1077,7 +1069,7 @@ static const device_config_t fmb_config[] = {
                 .files         = { "roms/machines/fmb/P5IV183.ROM", "" }
             },
             {
-                .name          = "Award Modular BIOS v4.51PG - 2001 Release (by Rainbow)",
+                .name          = "AwardBIOS v4.51PG - 2001 Release (by Rainbow)",
                 .internal_name = "fmb_451pg",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -1411,12 +1403,9 @@ machine_at_gw2kma_init(const machine_t *model)
 {
     int ret;
 
-    ret = bios_load_linear_combined2("roms/machines/gw2kma/1007DQ0T.BIO",
-                                     "roms/machines/gw2kma/1007DQ0T.BI1",
-                                     "roms/machines/gw2kma/1007DQ0T.BI2",
-                                     "roms/machines/gw2kma/1007DQ0T.BI3",
-                                     "roms/machines/gw2kma/1007DQ0T.RCV",
-                                     0x3a000, 128);
+    ret = bios_load_intel("roms/machines/gw2kma/1007DQ0T.BIO",
+                          "roms/machines/gw2kma/1007DQ0T.RCV",
+                          262144, 1);
 
     if (bios_only || !ret)
         return ret;
@@ -1485,7 +1474,7 @@ static const device_config_t c5sbm2_config[] = {
         .selection      = { { 0 } },
         .bios           = {
             {
-                .name          = "Award Modular BIOS v4.50GP - Revision 07/17/1995",
+                .name          = "AwardBIOS v4.50GP - Revision 07/17/1995",
                 .internal_name = "5sbm2_v450gp",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -1494,7 +1483,7 @@ static const device_config_t c5sbm2_config[] = {
                 .files         = { "roms/machines/5sbm2/5SBM0717.BIN", "" }
             },
             {
-                .name          = "Award Modular BIOS v4.50PG - Revision 03/26/1996",
+                .name          = "AwardBIOS v4.50PG - Revision 03/26/1996",
                 .internal_name = "5sbm2",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -1503,7 +1492,7 @@ static const device_config_t c5sbm2_config[] = {
                 .files         = { "roms/machines/5sbm2/5SBM0326.BIN", "" }
             },
             {
-                .name          = "Award Modular BIOS v4.51PG - Revision 2.2 (by Unicore Software)",
+                .name          = "AwardBIOS v4.51PG - Revision 2.2 (by Unicore Software)",
                 .internal_name = "5sbm2_451pg",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -1610,7 +1599,7 @@ static const device_config_t ap5s_config[] = {
         .selection      = { { 0 } },
         .bios           = {
             {
-                .name          = "Award Modular BIOS v4.50PG - Revision R1.20",
+                .name          = "AwardBIOS v4.50PG - Revision R1.20",
                 .internal_name = "ap5s_450pg",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -1619,7 +1608,7 @@ static const device_config_t ap5s_config[] = {
                 .files         = { "roms/machines/ap5s/ap5s120.bin", "" }
             },
             {
-                .name          = "Award Modular BIOS v4.51PG - Revision R1.50",
+                .name          = "AwardBIOS v4.51PG - Revision R1.50",
                 .internal_name = "ap5s_r150",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -1628,7 +1617,7 @@ static const device_config_t ap5s_config[] = {
                 .files         = { "roms/machines/ap5s/AP5S150.BIN", "" }
             },
             {
-                .name          = "Award Modular BIOS v4.51PG - Revision R1.60",
+                .name          = "AwardBIOS v4.51PG - Revision R1.60",
                 .internal_name = "ap5s",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -1774,7 +1763,7 @@ static const device_config_t ms5124_config[] = {
                 .files         = { "roms/machines/ms5124/AG77.ROM", "" }
             },
             {
-                .name          = "Award Modular BIOS v4.51PG - Revision WG72P",
+                .name          = "AwardBIOS v4.51PG - Revision WG72P",
                 .internal_name = "ms5124_451pg",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -1865,7 +1854,7 @@ machine_at_zeoswildcat_init(const machine_t *model)
     device_add(&intel_flash_bxt_device);
     device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
     device_add_params(&fdc37c6xx_device, (void *) FDC37C665);
-    device_add(&ide_rz1001_pci_device);
+    device_add(machine_get_ide_device(machine));
 
     return ret;
 }

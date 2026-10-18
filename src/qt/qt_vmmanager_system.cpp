@@ -600,7 +600,7 @@ VMManagerSystem::setupVars()
 
     if ((ci != -1) && (QString(video_internal_name) == "internal")) {
         auto internal_device = machine_get_vid_device(ci);
-        if (internal_device)
+        if (internal_device && device_available(internal_device))
             display_table[VMManager::Display::Name::Video].append(QString(" (%1)").arg(DeviceConfig::DeviceName(internal_device, internal_device->internal_name, 0)));
     }
 
@@ -985,6 +985,14 @@ VMManagerSystem::setupVars()
     auto mouse_dev                                 = mouse_get_from_internal_name(mouse_internal_name.toUtf8().data());
     auto mouse_dev_name                            = DeviceConfig::DeviceName(mouse_get_device(mouse_dev), mouse_get_internal_name(mouse_dev), 0);
     display_table[VMManager::Display::Name::Mouse] = mouse_dev_name;
+
+    // Input (Tablet)
+    if (input_config.contains("tablet_type")) {
+        auto tablet_internal_name                       = input_config["tablet_type"];
+        auto tablet_dev                                 = tablet_get_from_internal_name(tablet_internal_name.toUtf8().data());
+        auto tablet_dev_name                            = DeviceConfig::DeviceName(tablet_get_device(tablet_dev), tablet_get_internal_name(tablet_dev), 0);
+        display_table[VMManager::Display::Name::Tablet] = tablet_dev_name;
+    }
 
     // Input (joystick)
     QString joystickDevice;

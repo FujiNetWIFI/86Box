@@ -188,6 +188,7 @@ extern int      video_fullscreen;           /* (C) video */
 extern int      video_fullscreen_scale;     /* (C) video */
 extern int      enable_overscan;            /* (C) video */
 extern int      force_43;                   /* (C) video */
+extern int      force_device_aspect;        /* (C) video */
 extern int      video_filter_method;        /* (C) video */
 extern int      video_vsync;                /* (C) video */
 extern int      video_framerate;            /* (C) video */
@@ -199,12 +200,17 @@ extern int      bugger_enabled;             /* (C) enable ISAbugger */
 extern int      novell_keycard_enabled;     /* (C) enable Novell NetWare 2.x key card emulation. */
 extern int      postcard_enabled;           /* (C) enable POST card */
 extern int      unittester_enabled;         /* (C) enable unit tester device */
+extern int      softpower_enabled;            /* (C) enable PC Convertible-style soft power card */
 extern int      gameport_type[];            /* (C) enable gameports */
+extern int      mcamem_type[];              /* (C) enable MCA mem cards */
 extern int      isamem_type[];              /* (C) enable ISA mem cards */
 extern int      isarom_type[];              /* (C) enable ISA ROM cards */
 extern int      isartc_type;                /* (C) enable ISA RTC card */
 extern int      sound_is_float;             /* (C) sound uses FP values */
+extern char     sound_input_dev_name[512];  /* (C) name of sound input device */
+extern int      sound_input_enabled;        /* (C) enable sound input */
 extern int      sound_sample_rate;          /* (C) sound output sample rate */
+extern int      sb_input_rate;              /* (C) SB16/AWE32 hardware sample rate */
 extern int      voodoo_enabled;             /* (C) video option */
 extern int      ibm8514_standalone_enabled; /* (C) video option */
 extern int      xga_standalone_enabled;     /* (C) video option */
@@ -267,9 +273,6 @@ extern char monitor_edid_path[1024];        /* (C) Path to custom EDID */
 extern int color_scheme;                    /* (C) Color scheme of UI (Windows-only) */
 extern int fdd_sounds_enabled;              /* (C) Enable floppy drive sounds */
 
-#ifndef USE_NEW_DYNAREC
-extern FILE *stdlog; /* file to log output to */
-#endif
 extern int config_changed; /* config has changed */
 
 extern __thread int is_cpu_thread; /* Is this the CPU thread? */
@@ -338,7 +341,7 @@ struct accelKey {
 	char desc[64];
 	char seq[64];
 };
-#define NUM_ACCELS 16
+#define NUM_ACCELS 17
 extern struct accelKey acc_keys[NUM_ACCELS];
 extern struct accelKey def_acc_keys[NUM_ACCELS];
 extern int FindAccelerator(const char *name);

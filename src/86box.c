@@ -64,7 +64,10 @@
 #include <86box/bugger.h>
 #include <86box/postcard.h>
 #include <86box/unittester.h>
+#include <86box/softpower.h>
+#include <86box/ibm5140_power.h>
 #include <86box/novell_cardkey.h>
+#include <86box/mcamem.h>
 #include <86box/isamem.h>
 #include <86box/isarom.h>
 #include <86box/isartc.h>
@@ -99,6 +102,7 @@
 #include <86box/plat_dir.h>
 #include <86box/version.h>
 #include <86box/gdbstub.h>
+#include <86box/automation.h>
 #include <86box/machine_status.h>
 #include <86box/acpi.h>
 #include <86box/nv/vid_nv_rivatimer.h>
@@ -160,6 +164,7 @@ int      video_fullscreen_scale                 = 0;              /* (C) video *
 int      fullscreen_ui_visible                  = 0;              /* (C) video */
 int      enable_overscan                        = 0;              /* (C) video */
 int      force_43                               = 0;              /* (C) video */
+int      force_device_aspect                    = 0;              /* (C) video */
 int      video_filter_method                    = 1;              /* (C) video */
 int      video_vsync                            = 0;              /* (C) video */
 int      video_framerate                        = -1;             /* (C) video */
@@ -168,14 +173,19 @@ int      bugger_enabled                         = 0;              /* (C) enable 
 int      novell_keycard_enabled                 = 0;              /* (C) enable Novell NetWare 2.x key card emulation. */
 int      postcard_enabled                       = 0;              /* (C) enable POST card */
 int      unittester_enabled                     = 0;              /* (C) enable unit tester device */
+int      softpower_enabled                      = 0;              /* (C) enable PC Convertible-style soft power card */
 int      gameport_type[GAMEPORT_MAX]            = { 0, 0 };       /* (C) enable gameports */
+int      mcamem_type[MCAMEM_MAX]                = { 0, 0, 0, 0 }; /* (C) enable MCA mem cards */
 int      isamem_type[ISAMEM_MAX]                = { 0, 0, 0, 0 }; /* (C) enable ISA mem cards */
 int      isarom_type[ISAROM_MAX]                = { 0, 0, 0, 0 }; /* (C) enable ISA ROM cards */
 int      isartc_type                            = 0;              /* (C) enable ISA RTC card */
 int      gfxcard[GFXCARD_MAX]                   = { 0, 0 };       /* (C) graphics/video card */
 int      show_second_monitors                   = 1;              /* (C) show non-primary monitors */
 int      sound_is_float                         = 1;              /* (C) sound uses FP values */
+char     sound_input_dev_name[512]              = { 0 };          /* (C) name of sound input device  */
+int      sound_input_enabled                    = 0;              /* (C) enable sound input  */
 int      sound_sample_rate                      = FREQ_48000;     /* (C) sound output sample rate */
+int      sb_input_rate                          = FREQ_44100;     /* (C) SB16/AWE32 hardware sample rate */
 int      voodoo_enabled                         = 0;              /* (C) video option */
 int      ibm8514_standalone_enabled             = 0;              /* (C) video option */
 int      xga_standalone_enabled                 = 0;              /* (C) video option */
@@ -225,6 +235,9 @@ int      global_cfg_overridden = 0;                               /* Global conf
 
 int      monitor_edid = 0;                                        /* (C) Which EDID to use. 0=default, 1=custom. */
 char     monitor_edid_path[1024] = { 0 };                         /* (C) Path to custom EDID */
+#ifdef USE_VFIO
+vfio_device_conf_t vfio_device_conf[VFIO_DEVICE_MAX] = { 0 };    /* (C) VFIO passthrough devices */
+#endif
 
 double   video_gl_input_scale = 1.0;                              /* (C) OpenGL 3.x input scale */
 int      video_gl_input_scale_mode = FULLSCR_SCALE_FULL;          /* (C) OpenGL 3.x input stretch mode */
@@ -282,12 +295,12 @@ struct accelKey def_acc_keys[NUM_ACCELS] = {
     {
         .name="fast_forward",
         .desc="Fast forward",
-        .seq="Ctrl+Alt+F"
+        .seq="Ctrl+Shift+F"
     },
     {
         .name="release_mouse",
         .desc="Release mouse pointer",
-        .seq="Ctrl+End"
+        .seq="Ctrl+Shift+G"
     },
     {
         .name="hard_reset",
@@ -297,22 +310,27 @@ struct accelKey def_acc_keys[NUM_ACCELS] = {
     {
         .name="pause",
         .desc="Toggle pause",
-        .seq="Ctrl+Alt+P"
+        .seq="Ctrl+Shift+P"
     },
     {
         .name="mute",
         .desc="Toggle mute",
-        .seq="Ctrl+Alt+M"
+        .seq="Ctrl+Shift+M"
     },
     {
         .name="force_interpretation",
         .desc="Force interpretation",
-        .seq="Ctrl+Alt+I"
+        .seq="Ctrl+Shift+I"
+    },
+    {
+        .name="nmi",
+        .desc="Non-maskable interrupt",
+        .seq=""
     },
     {
         .name="toggle_osd",
         .desc="Toggle on-screen display",
-        .seq="Ctrl+Alt+O"
+        .seq="Ctrl+Shift+O"
     }
 ,
     {
@@ -517,6 +535,11 @@ fatal(const char *fmt, ...)
 
     do_pause(2);
 
+    /* A connected automation client would wait forever on a machine that has
+       stopped, behind a dialog it can't answer: close its connection now, so
+       it knows. The message is in the log. */
+    automation_close();
+
     ui_msgbox(MBX_ERROR | MBX_FATAL, temp);
 
     /* Cleanly terminate all of the emulator's components so as
@@ -561,6 +584,11 @@ fatal_ex(const char *fmt, va_list ap)
 #endif
 
     do_pause(2);
+
+    /* A connected automation client would wait forever on a machine that has
+       stopped, behind a dialog it can't answer: close its connection now, so
+       it knows. The message is in the log. */
+    automation_close();
 
     ui_msgbox(MBX_ERROR | MBX_FATAL, temp);
 
@@ -743,6 +771,13 @@ pc_show_usage(void)
             "\nUsage: 86box [options] [cfg-file]\n\n"
             "Valid options are:\n\n"
             "-? or --help\t\t\t- show this information\n"
+#ifdef USE_AUTOMATION
+            "--automation endpoint\t\t- listen for automation commands: unix:path or\n"
+            "\t\t\t\t   tcp:[host:]port (bare value: a path, or a port on Windows)\n"
+            "--automation-hold\t\t- start with the machine held for automation\n"
+            "--automation-token-file path\t- TCP: write the access token to 'path'\n"
+            "--automation-allow-remote\t- TCP: allow a non-loopback listen address\n"
+#endif
             "-A or --assetpath path\t\t- set 'path' to be asset path\n"
 #ifdef SHOW_EXTRA_PARAMS
             "-C or --config path\t\t- set 'path' to be config file\n"
@@ -789,9 +824,18 @@ pc_show_usage(void)
             "-Y or --donothing\t\t- do not show any UI or run the emulation\n"
 #endif
             "-Z or --lastvmpath\t\t- the last param. is VM path rather than config\n"
+            "\n"
+            "--window_x pos_x\t\t- Set window position in the horizontal direction\n"
+            "--window_y pos_y\t\t- Set window position in the vertical direction\n"
+            "--window_w width\t\t- Set window width\n"
+            "--window_h height\t\t- Set window height\n"
+#ifndef USE_SDL_UI
+            "--assume_copied_vm\t\t- Assume the VM is always copied on this run (regenerates UUID and MAC addresses)\n"
+            "--assume_moved_vm\t\t- Assume the VM is always moved on this run (regenerates UUID only)\n"
+#endif
             "\nA config file can be specified. If none is, the default file will be used.\n");
 
-#ifdef _WIN32
+#if defined _WIN32 && !(defined WIN_CONSOLE_LOG)
     ui_msgbox(MBX_INFO, p);
 #else
     always_log("%s", p);
@@ -816,6 +860,14 @@ pc_init(int argc, char *argv[])
     char            *p;
     char             temp[2048];
     char            *fn[FDD_NUM] = { NULL };
+    int              window_x_1 = 0;
+    int              window_y_1 = 0;
+    int              window_w_1 = 0;
+    int              window_h_1 = 0;
+    int              win_rem_set_x = 0;
+    int              win_rem_set_y = 0;
+    int              win_rem_set_w = 0;
+    int              win_rem_set_h = 0;
     char             drive = 0;
     char            *temp2 = NULL;
     char            *what;
@@ -874,6 +926,12 @@ pc_init(int argc, char *argv[])
     plat_getcwd(rom_path, sizeof(rom_path) - 1);
     plat_getcwd(asset_path, sizeof(asset_path) - 1);
 
+    for (uint8_t i = 0; i < FDD_NUM; i++) {
+        fdd_drive_t *drv = &drives[i];
+
+        memset(drv, 0x00, sizeof(fdd_drive_t));
+    }
+
     for (c = 1; c < argc; c++) {
         if (argv[c][0] != '-')
             break;
@@ -906,6 +964,22 @@ usage:
                 memcpy(vmm_path, vp, sizeof(vmm_path));
             else
                 memcpy(vmm_path, vp, strlen(vp) + 1);
+#endif
+#ifdef USE_AUTOMATION
+        } else if (!strcasecmp(argv[c], "--automation")) {
+            if ((c + 1) == argc)
+                goto usage;
+
+            snprintf(automation_path, sizeof(automation_path), "%s", argv[++c]);
+        } else if (!strcasecmp(argv[c], "--automation-hold")) {
+            automation_start_held = 1;
+        } else if (!strcasecmp(argv[c], "--automation-token-file")) {
+            if ((c + 1) == argc)
+                goto usage;
+
+            snprintf(automation_token_file, sizeof(automation_token_file), "%s", argv[++c]);
+        } else if (!strcasecmp(argv[c], "--automation-allow-remote")) {
+            automation_allow_remote = 1;
 #endif
         } else if (!strcasecmp(argv[c], "--fullscreen") || !strcasecmp(argv[c], "-F")) {
             start_in_fullscreen = 1;
@@ -986,6 +1060,8 @@ usage:
             do_nothing = 1;
         } else if (!strcasecmp(argv[c], "--nohook") || !strcasecmp(argv[c], "-W")) {
             hook_enabled = 0;
+        } else if (!strcasecmp(argv[c], "--assume_moved_vm") || !strcasecmp(argv[c], "--assume_copied_vm")) {
+            // do nothing, handled in Qt only.
         } else if (!strcasecmp(argv[c], "--clear") || !strcasecmp(argv[c], "-X")) {
             if ((c + 1) == argc)
                 goto usage;
@@ -1026,6 +1102,30 @@ usage:
 
             /* .. and then exit. */
             return 0;
+        } else if (!strcasecmp(argv[c], "--window_x")) {
+            if ((c + 1) == argc)
+                goto usage;
+
+            win_rem_set_x = 1;
+            window_x_1 = strtoull(&(argv[++c][0]), NULL, 10);
+        } else if (!strcasecmp(argv[c], "--window_y")) {
+            if ((c + 1) == argc)
+                goto usage;
+
+            win_rem_set_y = 1;
+            window_y_1 = strtoull(&(argv[++c][0]), NULL, 10);
+        } else if (!strcasecmp(argv[c], "--window_w")) {
+            if ((c + 1) == argc)
+                goto usage;
+
+            win_rem_set_w = 1;
+            window_w_1 = strtoull(&(argv[++c][0]), NULL, 10);
+        } else if (!strcasecmp(argv[c], "--window_h")) {
+            if ((c + 1) == argc)
+                goto usage;
+
+            win_rem_set_h = 1;
+            window_h_1 = strtoull(&(argv[++c][0]), NULL, 10);
 #ifdef USE_INSTRUMENT
         } else if (!strcasecmp(argv[c], "--instrument") || !strcasecmp(argv[c], "-J")) {
             if ((c + 1) == argc)
@@ -1354,13 +1454,31 @@ usage:
         mo_global_init();
         tape_global_init();
 
-        /* Load the configuration file. */
-        config_load();
+        /*
+           Set the ID of all the floppy drives so their configuration
+           can load.
+         */
+        for (uint8_t i = 0; i < FDD_NUM; i++) {
+            fdd_drive_t *drv = &drives[i];
+
+            drv->id    = i;
+            drv->empty = 1;
+        }
+
+        /*
+           Load the configuration file; the user may choose not to, for a
+           machine this build does not have, and then nothing is saved.
+         */
+        if (!config_load())
+            return 0;
+
         /* To save the global key binds. */
         config_save_global();
 
-        /* Clear the CMOS and/or BIOS flash file, if we were started with
-           the relevant parameter(s). */
+        /*
+           Clear the CMOS and/or BIOS flash file, if we were started with
+           the relevant parameter(s).
+         */
         if (clear_cmos) {
             delete_nvr_file(0);
             clear_cmos = 0;
@@ -1372,12 +1490,23 @@ usage:
         }
 
         for (uint8_t i = 0; i < FDD_NUM; i++) {
+            fdd_drive_t *drv = &drives[i];
             if (fn[i] != NULL) {
                 if (strlen(fn[i]) <= 511)
-                    strncpy(floppyfns[i], fn[i], 511);
+                    strncpy(drv->image_path, fn[i], 511);
                 free(fn[i]);
                 fn[i] = NULL;
             }
+        }
+
+        if (win_rem_set_x || win_rem_set_y || win_rem_set_w || win_rem_set_h) {
+            int old_window_remember = window_remember;
+            window_remember = 1;
+            vid_resize = (win_rem_set_w || win_rem_set_h);
+            window_x = win_rem_set_x ? window_x_1 : (old_window_remember ? window_x : 0);
+            window_y = win_rem_set_y ? window_y_1 : (old_window_remember ? window_y : 0);
+            window_w = win_rem_set_w ? window_w_1 : (old_window_remember ? window_w : 640);
+            window_h = win_rem_set_h ? window_h_1 : (old_window_remember ? window_h : 480);
         }
     }
 
@@ -1575,6 +1704,8 @@ pc_init_modules(void)
         exit(-1);
     }
 
+    automation_init();
+
     return 1;
 }
 
@@ -1587,49 +1718,52 @@ pc_send_ca(uint16_t sc)
         /* Use R-Alt because PS/55 DOS and OS/2 assign L-Alt Kanji */
         keyboard_input(1, 0x1D);  /*  Ctrl key pressed */
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         keyboard_input(1, 0x138); /* R-Alt key pressed */
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         keyboard_input(1, sc);
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         usleep(50000);
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         keyboard_input(0, sc);
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         keyboard_input(0, 0x138); /* R-Alt key released */
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         keyboard_input(0, 0x1D);  /*  Ctrl key released */
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
     } else {
         keyboard_input(1, 0x1D); /* Ctrl key pressed */
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         keyboard_input(1, 0x38); /* Alt key pressed */
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         keyboard_input(1, sc);
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         usleep(50000);
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         keyboard_input(0, sc);
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         keyboard_input(0, 0x38); /* Alt key released */
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
         keyboard_input(0, 0x1D); /* Ctrl key released */
         if (keyboard_get_in_reset())
-            return;
+            goto cleanup;
     }
 
+cleanup:
+    if (keyboard_get_in_reset())
+        keyboard_all_up();
     keyboard_toggle_override();
 }
 
@@ -1802,6 +1936,9 @@ pc_reset_hard_init(void)
     /* Reset and reconfigure the Network Card layer. */
     network_reset();
 
+    /* Reset and reconfigure the MCA memory expansion boards. */
+    mcamem_reset();
+
     /*
      * Reset the mouse, this will attach it to any port needed.
      */
@@ -1869,18 +2006,29 @@ pc_reset_hard_init(void)
         device_add(&postcard_device);
     if (unittester_enabled)
         device_add(&unittester_device);
+    if (softpower_enabled && (machines[machine].init != machine_ibm5140_init))
+        device_add(&softpower_device);
 
     if (novell_keycard_enabled)
         device_add(&novell_keycard_device);
 
-    if (IS_ARCH(machine, MACHINE_BUS_PCI)) {
+    if (IS_ARCH(machine, MACHINE_BUS_PCI) ||
+        IS_ARCH(machine, MACHINE_BUS_AGP) ||
+        machine_has_flags(machine, MACHINE_PCI_INTERNAL) ||
+        machine_has_flags(machine, MACHINE_AGP_INTERNAL)) {
         pci_register_cards();
-        device_reset_all(DEVICE_PCI);
+        /* The AGP slot shares the bus RST# signal. */
+        device_reset_all(DEVICE_PCI | DEVICE_AGP);
     }
 
     /* Mark IDE shadow drives (slaves with a present master) as such in case
        the IDE controllers present are not some form of PCI. */
     ide_drives_set_shadow();
+
+    /* Every IDE board is up by now: check them against what the settings
+       show for each. */
+    ide_plan_check();
+    scsi_plan_check();
 
     /* Make sure to disable any sound timers with no handlers. */
     sound_recalc_timers();
@@ -1940,7 +2088,7 @@ pc_close(UNUSED(thread_t *ptr))
     serial_devices_close(0);
 
     for (uint8_t i = 0; i < FDD_NUM; i++)
-        fdd_close(i);
+        fdd_close(&drives[i]);
 
 #ifdef ENABLE_808X_LOG
     if (dump_on_exit)
@@ -1975,6 +2123,7 @@ pc_close(UNUSED(thread_t *ptr))
 
     gdbstub_close();
 
+    automation_close();
 }
 
 #ifdef __APPLE__
@@ -2000,6 +2149,7 @@ pc_run(void)
     /* Trigger a hard reset if one is pending. */
     if (hard_reset_pending) {
         hard_reset_pending = 0;
+        ibm5140_power_hard_off();
         pc_reset_hard_close();
         pc_reset_hard_init();
     }
@@ -2137,6 +2287,11 @@ set_screen_size_monitor(int x, int y, int monitor_index)
                 dy = (dx / 4.0) * 3.0;
         }
         monitors[monitor_index].mon_unscaled_size_y = (int) dy;
+    } else if (force_device_aspect && monitors[monitor_index].mon_device_aspect_x > 0 &&
+               monitors[monitor_index].mon_device_aspect_y > 0) {
+        monitors[monitor_index].mon_unscaled_size_y =
+            x * monitors[monitor_index].mon_device_aspect_y /
+            monitors[monitor_index].mon_device_aspect_x;
     } else
         monitors[monitor_index].mon_unscaled_size_y = monitors[monitor_index].mon_efscrnsz_y;
 

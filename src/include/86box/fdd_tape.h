@@ -25,7 +25,7 @@
 #define EMU_FDD_TAPE_H
 
 /* For logging detailed QIC-117 debugging into the emulator log. */
-#if 0
+#if 1
 #    define ENABLE_FDD_TAPE_LOG 1
 #endif
 
@@ -39,13 +39,20 @@
 #define FDD_TAPE_SECTOR_SIZE     1024
 #define FDD_TAPE_SECTORS_PER_SEG 32
 #define FDD_TAPE_SEGMENT_SIZE    (FDD_TAPE_SECTOR_SIZE * FDD_TAPE_SECTORS_PER_SEG)
+/* The last three sectors of a segment hold its Reed-Solomon parity. */
+#define FDD_TAPE_ECC_SECTORS     3
 /*
-   Defaults only. The cartridge's own header segment states the mapping it
-   was formatted with, and a QIC-80 tape typically uses 150 cylinders per
-   head rather than the 255 these defaults imply.
+   Blank-cartridge defaults, keyed on the format being laid down. A formatted
+   cartridge states its true mapping in its own header segment, which the
+   loader reads and which overrides these. The host packs a QIC-80 cartridge
+   at 150 cylinders per head and a QIC-40 one at 255, both at four segments
+   per cylinder - the values observed in the headers it writes.
  */
-#define FDD_TAPE_SEGS_PER_CYL    4
-#define FDD_TAPE_SEGS_PER_HEAD   1020
+#define FDD_TAPE_SEGS_PER_CYL         4
+#define FDD_TAPE_SEGS_PER_HEAD_QIC80  600   /* 150 cylinders per head */
+#define FDD_TAPE_SEGS_PER_HEAD_QIC40  1020  /* 255 cylinders per head */
+/* Default before the host has selected a format: this is a QIC-80 drive. */
+#define FDD_TAPE_SEGS_PER_HEAD        FDD_TAPE_SEGS_PER_HEAD_QIC80
 
 /* Highest cylinder a data transfer may name in the C/H/R address space. */
 #define FDD_TAPE_MAX_TRACK       255
@@ -54,11 +61,8 @@
 extern "C" {
 #endif
 
-extern int  fdd_tape_enabled;                   /* drive fitted to the cable */
-extern int  fdd_tape_unit;                      /* drive select line, 0..3 */
-extern char fdd_tape_fn[MAX_IMAGE_PATH_LEN];    /* cartridge image */
-
-/* Attaches or detaches the drive according to the configuration above. */
+/* Attaches or detaches the drive according to its tape_drives[] entry
+   (TAPE_BUS_FDC). */
 extern void fdd_tape_init(void);
 extern void fdd_tape_close(void);
 
@@ -66,16 +70,14 @@ extern void fdd_tape_close(void);
 extern void fdd_tape_load(const char *fn);
 extern void fdd_tape_eject(void);
 
-extern void fdd_tape_set_fdc(void *fdc);
-
 /* Adds a burst of step pulses to the train in progress, and returns how
    long the controller needs to clock them out, in microseconds. */
-extern int fdd_tape_step(int drive, int steps);
+extern int fdd_tape_step(void *priv, int steps);
 
 /* Queries used by the floppy drive and controller layers. */
-extern int fdd_tape_present(int drive);
-extern int fdd_tape_track0(int drive);
-extern int fdd_tape_get_flags(int drive);
+extern int fdd_tape_present(void *priv);
+extern int fdd_tape_track0(void *priv);
+extern int fdd_tape_get_flags(void *priv);
 
 #ifdef __cplusplus
 }

@@ -145,6 +145,7 @@ typedef struct scancode {
 #define KBC_VEN_VIA              0x10
 #define KBC_VEN_UMC              0x11
 #define KBC_VEN_SIS              0x12
+#define KBC_VEN_HP_VECTRA        0x13
 #define KBC_VEN_MASK             0x1f
 
 #define KBC_FLAG_IS_ASIC   0x80000000
@@ -202,6 +203,7 @@ extern const device_t kbc_xt_jukost_device;
 extern const device_t kbc_xtclone_device;
 
 extern const device_t kbc_at_device;
+extern const device_t kbc_at_vectra_device;
 extern const device_t kbc_ps2_m25_device;
 
 extern const device_t keyboard_pc_xt_device;
@@ -216,6 +218,8 @@ extern void     keyboard_toggle_override(void);
 extern void     keyboard_init(void);
 extern void     keyboard_close(void);
 extern void     keyboard_set_table(const scancode *ptr);
+extern void     keyboard_set_input_handler(void (*handler)(uint16_t scan, int down, void *priv),
+                                           void *priv);
 extern void     keyboard_poll_host(void);
 extern void     keyboard_process(void);
 extern void     keyboard_process_10x(void);
@@ -244,11 +248,17 @@ extern void         kbc_at_set_fast_reset(uint8_t new_fast_reset);
 extern void         kbc_at_port_handler(int num, int set, uint16_t port, void *priv);
 extern void         kbc_at_handler(int set, uint16_t port, void *priv);
 extern void         kbc_at_set_irq(int num, uint16_t irq, void *priv);
+extern void         kbc_at_set_p2_write_hook(void *priv,
+                                             void (*p2_write_hook)(void *priv,
+                                                                   uint8_t old_p2,
+                                                                   uint8_t new_p2),
+                                             void *p2_priv);
 
 extern void         kbc_at_dev_queue_reset(atkbc_dev_t *dev, uint8_t reset_main);
 extern uint8_t      kbc_at_dev_queue_pos(atkbc_dev_t *dev, uint8_t main);
 extern void         kbc_at_dev_queue_add(atkbc_dev_t *dev, uint8_t val, uint8_t main);
 extern void         kbc_at_dev_reset(atkbc_dev_t *dev, int do_fa);
+extern void         kbc_at_dev_discard(atkbc_dev_t *dev);
 extern atkbc_dev_t *kbc_at_dev_init(uint8_t inst);
 /* This is so we can disambiguate scan codes that would otherwise conflict and get
    passed on incorrectly. */

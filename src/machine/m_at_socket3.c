@@ -229,7 +229,7 @@ machine_at_cobalt_init(const machine_t *model)
     machine_at_common_init(model);
 
     device_add(&opti499_device);
-    device_add(&ide_opti611_vlb_device);
+    device_add(machine_get_ide_device(machine));
     device_add(&ide_isa_sec_device);
     device_add_params(&fdc37c6xx_device, (void *) FDC37C665);
 
@@ -264,7 +264,7 @@ static const device_config_t j403tg_config[] = {
                 .files         = { "roms/machines/403tg/J403TGRevD.BIN", "" }
             },
             {
-                .name          = "Award Modular BIOS v4.50G",
+                .name          = "AwardBIOS v4.50G",
                 .internal_name = "403tg_award",
                 .bios_type     = BIOS_NORMAL,
                 .files_no      = 1,
@@ -357,6 +357,39 @@ machine_at_acerv10_init(const machine_t *model)
 }
 
 /* SiS 471 */
+static const device_config_t win471t_config[] = {
+    // clang-format off
+    {
+        .name        = "cache_size",
+        .description = "External cache",
+        .type        = CONFIG_SELECTION,
+        .default_int = 3,
+        .selection   = {
+            { .description = "128 KB",  .value = 2 },
+            { .description = "256 KB",  .value = 3 },
+            { .description = "512 KB",  .value = 4 },
+            { .description = "1 MB",    .value = 5 },
+            { .description = "" }
+        }
+    },
+    { .name = "", .description = "", .type = CONFIG_END }
+    // clang-format on
+};
+
+const device_t win471t_device = {
+    .name          = "ABIT AB-AH4T",
+    .internal_name = "win471t",
+    .flags         = 0,
+    .local         = 0,
+    .init          = NULL,
+    .close         = NULL,
+    .reset         = NULL,
+    .available     = NULL,
+    .speed_changed = NULL,
+    .force_redraw  = NULL,
+    .config        = win471t_config
+};
+
 static void
 machine_at_sis_85c471_common_init(const machine_t *model)
 {
@@ -397,7 +430,17 @@ machine_at_win471t_init(const machine_t *model)
     if (bios_only || !ret)
         return ret;
 
-    machine_at_sis_85c471_common_init(model);
+    machine_at_common_init(model);
+
+    if (fdc_current[0] == FDC_INTERNAL)
+        device_add(&fdc_at_device);
+
+    /* SiS 85C471 register 51h bits 6:4 are the external cache size.
+     * Store the selected code in bits 18:16 of the device local value and
+     * set bit 24 to indicate that this board should force those bits. */
+    uint8_t cache_size_code = machine_get_config_int("cache_size");
+    uintptr_t sis_params = ((uintptr_t) 1 << 24) | ((uintptr_t) cache_size_code << 16);
+    device_add_params(&sis_85c471_device, (void *) sis_params);
 
     device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
 
@@ -453,7 +496,7 @@ machine_at_dvent4xx_init(const machine_t *model)
 
     machine_at_common_init(model);
     device_add(&sis_85c471_device);
-    device_add(&ide_cmd640_vlb_pri_device);
+    device_add(machine_get_ide_device(machine));
     device_add_params(&fdc37c6xx_device, (void *) (FDC37C665 | FDC37C6XX_IDE_SEC));
 
     device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
@@ -496,6 +539,34 @@ machine_at_ami471_init(const machine_t *model)
     machine_at_sis_85c471_common_init(model);
 
     device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
+
+    return ret;
+}
+
+int
+machine_at_lpm30_init(const machine_t *model)
+{
+    int ret;
+
+    ret = bios_load_linear_inverted("roms/machines/lpm30/n28f001bx-t-at-plcc32-miconics-lpm30.bin",
+                                    0x000e0000, 131072, 0);
+
+    if (bios_only || !ret)
+        return ret;
+
+    machine_at_common_init(model);
+
+    device_add(&sis_85c471_device);
+    device_add(machine_get_ide_device(machine));
+    device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
+    device_add_params(&fdc37c6xx_device, (void *) FDC37C665);
+    device_add(&intel_flash_bxt_device);
+
+    if (sound_card_current[0] == SOUND_INTERNAL)
+        machine_snd = device_add(machine_get_snd_device(machine));
+
+    if (gfxcard[0] == VID_INTERNAL)
+        device_add(machine_get_vid_device(machine));
 
     return ret;
 }

@@ -42,6 +42,8 @@
 #include <86box/video.h>
 #include <86box/plat_unused.h>
 
+extern int    dma_xt8237_active(void);
+
 #ifdef NEW_PIT
 pit_intf_t pit_devs[2];
 
@@ -292,8 +294,19 @@ pit_timer_over(void *priv)
 
     dev->clock ^= 1;
 
-    for (uint8_t i = 0; i < NUM_COUNTERS; i++)
-        pit_ctr_set_clock_common(&dev->counters[i], dev->clock, dev);
+    for (uint8_t i = 0; i < NUM_COUNTERS; i++) {
+        ctr_t *ctr = &dev->counters[i];
+
+        /* A divided counter sees one edge in every clock_div of the
+           timer's, and so a clock clock_div times slower. */
+        if (ctr->clock_div > 1) {
+            if (++ctr->clock_phase < ctr->clock_div)
+                continue;
+            ctr->clock_phase = 0;
+            pit_ctr_set_clock_common(ctr, !ctr->clock, dev);
+        } else
+            pit_ctr_set_clock_common(ctr, dev->clock, dev);
+    }
 
     timer_advance_u64(&dev->callback_timer, dev->pit_const >> 1ULL);
 }
@@ -389,8 +402,12 @@ pit_irq0_timer_ps2(int new_out, int old_out, UNUSED(void *priv))
 void
 pit_refresh_timer_xt(int new_out, int old_out, UNUSED(void *priv))
 {
-    if (new_out && !old_out)
-        dma_xt_refresh_request();
+    if (new_out && !old_out) {
+        if (dma_xt8237_active())
+            dma_xt_refresh_request();
+        else
+            dma_channel_read(0);
+    }
 }
 
 
@@ -502,6 +519,8 @@ pit_close(void *priv)
 
     if (dev == pit_devs[1].data)
         pit_devs[1].data = NULL;
+    if (dev == pit_ps2_watchdog)
+        pit_ps2_watchdog = NULL;
 
     if (dev != NULL)
         free(dev);
@@ -677,7 +696,8 @@ pit_ps2_init(int type)
             break;
     }
 
-    ps2_pit->data = pit;
+    ps2_pit->data    = pit;
+    pit_ps2_watchdog = pit;
 
     ps2_pit->set_gate(ps2_pit->data, 0, 0);
     for (int i = 0; i < 3; i++) {
@@ -936,6 +956,10 @@ ctr_tick(ctr_t *ctr, void *priv)
             if ((ctr->gate != 0) || (ctr->m != 4)) {
                 switch (state) {
                     case 0:
+                        /* A mode control word inhibits counting until reload. */
+                        if (ctr->null_count)
+                            break;
+                        /* fallthrough */
                     case 6:
                         ctr_decrease_count(ctr);
                         break;
@@ -1195,8 +1219,19 @@ pit_timer_over(void *priv)
 
     dev->clock ^= 1;
 
-    for (uint8_t i = 0; i < NUM_COUNTERS; i++)
-        pit_ctr_set_clock_common(&dev->counters[i], dev->clock, dev);
+    for (uint8_t i = 0; i < NUM_COUNTERS; i++) {
+        ctr_t *ctr = &dev->counters[i];
+
+        /* A divided counter sees one edge in every clock_div of the
+           timer's, and so a clock clock_div times slower. */
+        if (ctr->clock_div > 1) {
+            if (++ctr->clock_phase < ctr->clock_div)
+                continue;
+            ctr->clock_phase = 0;
+            pit_ctr_set_clock_common(ctr, !ctr->clock, dev);
+        } else
+            pit_ctr_set_clock_common(ctr, dev->clock, dev);
+    }
 
     timer_advance_u64(&dev->callback_timer, dev->pit_const >> 1ULL);
 }
@@ -1483,8 +1518,12 @@ pit_irq0_timer_ps2(int new_out, int old_out, UNUSED(void *priv))
 void
 pit_refresh_timer_xt(int new_out, int old_out, UNUSED(void *priv))
 {
-    if (new_out && !old_out)
-        dma_channel_read(0);
+    if (new_out && !old_out) {
+        if (dma_xt8237_active())
+            dma_xt_refresh_request();
+        else
+            dma_channel_read(0);
+    }
 }
 
 void
@@ -1593,6 +1632,8 @@ pit_close(void *priv)
 
     if (dev == pit_devs[1].data)
         pit_devs[1].data = NULL;
+    if (dev == pit_ps2_watchdog)
+        pit_ps2_watchdog = NULL;
 
     if (dev != NULL)
         free(dev);
@@ -1772,7 +1813,8 @@ pit_ps2_init(int type)
             break;
     }
 
-    ps2_pit->data = pit;
+    ps2_pit->data    = pit;
+    pit_ps2_watchdog = pit;
 
     ps2_pit->set_gate(ps2_pit->data, 0, 0);
     for (int i = 0; i < 3; i++) {
@@ -1835,7 +1877,12 @@ pit_set_clock(uint32_t clock)
                 break;
 
             case 8000000:
-                cpuclock = 24000000.0;
+                if ((strcmp(machine_get_internal_name(), "ibmps2_m25") == 0) ||
+                    (strcmp(machine_get_internal_name(), "ibmps2_m30") == 0)) {
+                    cpuclock = 48000000.0;
+                    xt_cpu_multi = 6ULL;
+                } else
+                    cpuclock = 24000000.0;
                 break;
             case 9545456:
                 cpuclock = 28636368.0;
@@ -1872,20 +1919,26 @@ pit_set_clock(uint32_t clock)
 #endif
         }
         
-        if (machines[machine].init == machine_xt_ibm5550_init) {
-            PITCONSTD = (cpuclock / 2000000.0); /* CLK input 2.0 MHz */
-            PITCONST  = (uint64_t) (PITCONSTD * (double) (1ULL << 32));
-        }
-
-        if (cpuclock == 24000000.0)
+        if ((cpuclock == 24000000.0) || (cpuclock == 48000000.0))
             ISACONST     = (uint64_t) ((cpuclock / 14318184.0) * (double) (1ULL << 32));
         else
             ISACONST = (1ULL << 32ULL);
     }
+
+    /* The Multistation family clocks its 8253 from a 2.0 MHz source instead of
+       the PC's 1.19318 MHz, on the 8086 (5550) and the 286 (5535-M) alike, so
+       this must stay outside the CPU family branch above. */
+    if ((machines[machine].init == machine_xt_ibm5550_init) || (machines[machine].init == machine_xt_ibm5535_init)) {
+        PITCONSTD = (cpuclock / 2000000.0); /* CLK input 2.0 MHz */
+        PITCONST  = (uint64_t) (PITCONSTD * (double) (1ULL << 32));
+    }
+
     xt_cpu_multi <<= 32ULL;
 
     /* Delay for empty I/O ports. */
     io_delay = (int) round(((double) cpu_s->rspeed) / 3000000.0);
+    if ((machines[machine].init == machine_xt_ibm5550_init) || (machines[machine].init == machine_xt_ibm5535_init))
+        io_delay = 8;
 
 #ifdef WRONG_MDACONST
     MDACONST  = (uint64_t) (cpuclock / 2032125.0 * (double) (1ULL << 32));
@@ -1930,6 +1983,18 @@ pit_set_clock(uint32_t clock)
     device_speed_changed();
 }
 
+void *pit_ps2_watchdog = NULL;
+
+static void
+pit_ctr_set_clock_div(void *data, int counter_id, int div)
+{
+    pit_t *pit = (pit_t *) data;
+    ctr_t *ctr = &pit->counters[counter_id];
+
+    ctr->clock_div   = (div > 1) ? div : 1;
+    ctr->clock_phase = 0;
+}
+
 const pit_intf_t pit_classic_intf = {
     .read            = &pit_read,
     .write           = &pit_write,
@@ -1941,5 +2006,6 @@ const pit_intf_t pit_classic_intf = {
     .set_load_func   = &pit_ctr_set_load_func,
     .ctr_clock       = &ctr_clock,
     .set_pit_const   = &pit_set_pit_const,
+    .set_clock_div   = &pit_ctr_set_clock_div,
     .data            = NULL,
 };

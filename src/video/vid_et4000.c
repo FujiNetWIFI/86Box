@@ -852,7 +852,7 @@ et4000_init(const device_t *info)
             svga_init(info, &dev->svga, dev, dev->vram_size,
                       et4000_recalctimings, et4000_in, et4000_out,
                       NULL, NULL);
-            io_sethandler(0x03c0, 32,
+            io_sethandler(0x03a0, 64,
                           et4000_in, NULL, NULL, et4000_out, NULL, NULL, dev);
             bios_ver      = (char *) device_get_config_bios("bios");
             fn            = (char *) device_get_bios_file(info, bios_ver, 0);
@@ -864,7 +864,7 @@ et4000_init(const device_t *info)
             svga_init(info, &dev->svga, dev, dev->vram_size,
                       et4000_recalctimings, et4000_in, et4000_out,
                       NULL, NULL);
-            io_sethandler(0x03c0, 32,
+            io_sethandler(0x03a0, 64,
                           et4000_in, NULL, NULL, et4000_out, NULL, NULL, dev);
             dev->pos_regs[0]                    = 0xf2; /* ET4000 MCA board ID */
             dev->pos_regs[1]                    = 0x80;
@@ -887,7 +887,7 @@ et4000_init(const device_t *info)
             svga_init(info, &dev->svga, dev, dev->vram_size,
                       et4000_recalctimings, et4000k_in, et4000k_out,
                       NULL, NULL);
-            io_sethandler(0x03c0, 32,
+            io_sethandler(0x03a0, 64,
                           et4000k_in, NULL, NULL, et4000k_out, NULL, NULL, dev);
             io_sethandler(0x22cb, 1,
                           et4000k_in, NULL, NULL, et4000k_out, NULL, NULL, dev);
@@ -925,7 +925,7 @@ et4000_init(const device_t *info)
             svga_init(info, &dev->svga, dev, dev->vram_size,
                       et4000_kasan_recalctimings, et4000_in, et4000_out,
                       NULL, NULL);
-            io_sethandler(0x03c0, 32,
+            io_sethandler(0x03a0, 64,
                           et4000k_in, NULL, NULL, et4000k_out, NULL, NULL, dev);
             io_sethandler(0x0250, 8,
                           et4000_kasan_in, NULL, NULL, et4000_kasan_out, NULL, NULL, dev);
@@ -958,6 +958,8 @@ et4000_init(const device_t *info)
     dev->svga.translate_address = get_et4000_addr;
 
     dev->svga.packed_chain4 = 1;
+
+    dev->svga.adv_flags    |= FLAG_EXT_AR;
 
     return dev;
 }
@@ -1115,9 +1117,9 @@ static const device_config_t et4000_config[] = {
 };
 
 const device_t et4000_isa_device = {
-    .name          = "Tseng Labs ET4000AX (ISA)",
+    .name          = "Tseng Labs ET4000AX",
     .internal_name = "et4000ax",
-    .flags         = DEVICE_ISA,
+    .flags         = DEVICE_ISA | DEVICE_ISA16,
     .local         = ET4000_TYPE_USE_CONFIG_BIOS,
     .init          = et4000_init,
     .close         = et4000_close,
@@ -1129,7 +1131,7 @@ const device_t et4000_isa_device = {
 };
 
 const device_t et4000_mca_device = {
-    .name          = "Tseng Labs ET4000AX (MCA)",
+    .name          = "Tseng Labs ET4000AX",
     .internal_name = "et4000mca",
     .flags         = DEVICE_MCA,
     .local         = ET4000_TYPE_MCA,

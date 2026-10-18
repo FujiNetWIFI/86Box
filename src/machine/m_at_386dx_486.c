@@ -195,9 +195,6 @@ machine_at_pred1plus_init(const machine_t *model)
     device_add_params(&fdc37c6xx_device, (void *) (FDC37C651 | FDC37C6XX_IDE_PRI));
     device_add_params(machine_get_kbc_device(machine), (void *) model->kbc_params);
 
-    if (fdc_current[0] == FDC_INTERNAL)
-        device_add(&fdc_at_device);
-    
     return ret;
 }
 
@@ -223,7 +220,7 @@ static const device_config_t fic4386vcv_config[] = {
                 .files         = { "roms/machines/fic4386vcv/486-4386-VC.BIN", "" }
             },
             {
-                .name          = "Award Modular BIOS v4.20 - Revision 1.15K",
+                .name          = "AwardBIOS v4.20 - Revision 1.15K",
                 .internal_name = "fic4386vcv",
                 .bios_type     = BIOS_NORMAL, 
                 .files_no      = 1,

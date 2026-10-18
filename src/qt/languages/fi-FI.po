@@ -81,6 +81,9 @@ msgstr "&Määritä koko…"
 msgid "Force &4:3 display ratio"
 msgstr "Pakota &4:3-kuvasuhde"
 
+msgid "Force &%1:%2 display ratio"
+msgstr "Pakota &%1:%2-kuvasuhde"
+
 msgid "&Window scale factor"
 msgstr "&Ikkunan kokokerroin"
 
@@ -423,8 +426,11 @@ msgstr "Käytössä (UTC)"
 msgid "Use the 486 interpreter for 286 and 386 processors"
 msgstr "Käytä 486-tulkintaa 286- ja 386-prosessoreille"
 
-msgid "Dynamic Recompiler"
+msgid "Dynamic recompiler"
 msgstr "Dynaaminen uudelleenkääntäjä"
+
+msgid "Accurate FPU environment on the dynamic recompiler"
+msgstr ""
 
 msgid "CPU frame size"
 msgstr "CPU frame-koko"
@@ -456,6 +462,9 @@ msgstr "XGA-grafiikkasuoritin"
 msgid "IBM PS/55 Display Adapter Graphics"
 msgstr "IBM PS/55-näyttöadapteri"
 
+msgid "SCSI:"
+msgstr "SCSI:"
+
 msgid "Voodoo:"
 msgstr "Voodoo:"
 
@@ -470,6 +479,21 @@ msgstr "Hiiri:"
 
 msgid "Mouse"
 msgstr "Hiiri"
+
+msgid "&Mouse"
+msgstr "&Hiiri"
+
+msgid "Tablet:"
+msgstr ""
+
+msgid "Tablet"
+msgstr ""
+
+msgid "&Tablet"
+msgstr ""
+
+msgid "Tablet (&Crosshair)"
+msgstr ""
 
 msgid "Joystick:"
 msgstr "Peliohjain:"
@@ -831,6 +855,9 @@ msgstr "Näyttö"
 msgid "Input devices"
 msgstr "Syöttölaitteet"
 
+msgid "Input &device"
+msgstr ""
+
 msgid "Sound"
 msgstr "Ääni"
 
@@ -839,6 +866,9 @@ msgstr "Verkko"
 
 msgid "Ports (COM & LPT)"
 msgstr "Portit (COM & LPT)"
+
+msgid "Port"
+msgstr ""
 
 msgid "Ports"
 msgstr "Portit"
@@ -914,6 +944,9 @@ msgstr "Paina %1 vapauttaaksesi hiiren"
 
 msgid "Press %1 or middle button to release mouse"
 msgstr "Paina %1 tai keskipainiketta vapauttaaksesi hiiren"
+
+msgid "Press %1 or side button to release mouse"
+msgstr ""
 
 msgid "Bus"
 msgstr "Väylä"
@@ -1465,6 +1498,18 @@ msgstr "ACPI-sammutus"
 
 msgid "ACP&I shutdown"
 msgstr "ACP&I-sammutus"
+
+msgid "Power off"
+msgstr ""
+
+msgid "Power &off…"
+msgstr ""
+
+msgid "Power &off"
+msgstr ""
+
+msgid "Powering off the emulated machine may cause data loss. Are you sure you want to continue?"
+msgstr ""
 
 msgid "Hard disk (%1)"
 msgstr "Kiintolevy (%1)"
@@ -2245,6 +2290,9 @@ msgstr "Sarjanumero"
 msgid "Host ID"
 msgstr "Isännän ID"
 
+msgid "Host"
+msgstr ""
+
 msgid "FDC Address"
 msgstr "FDC-osoite"
 
@@ -2674,6 +2722,18 @@ msgstr "Parannettu väri - Normaali tila (5154/ECD)"
 msgid "Enhanced Color - Enhanced Mode (5154/ECD)"
 msgstr "Parannettu väri - Parannettu tila (5154/ECD)"
 
+msgid "IBM 8507 (1024x768, Monochrome)"
+msgstr "IBM 8507 (1024x768, yksivärinen)"
+
+msgid "IBM 8514 (1024x768, Color)"
+msgstr "IBM 8514 (1024x768, väri)"
+
+msgid "IBM 8503 (640x480, Monochrome)"
+msgstr "IBM 8503 (640x480, yksivärinen)"
+
+msgid "IBM 8512/13 (640x480, Color)"
+msgstr "IBM 8512/13 (640x480, väri)"
+
 msgid "Green"
 msgstr "Vihreä"
 
@@ -2872,8 +2932,14 @@ msgstr "[Yleinen] 1989 (3500 RPM)"
 msgid "[Generic] 1992 (3600 RPM)"
 msgstr "[Yleinen] 1992 (3600 RPM)"
 
+msgid "[Generic] 1993 (4000 RPM)"
+msgstr "[Yleinen] 1993 (4000 RPM)"
+
 msgid "[Generic] 1994 (4500 RPM)"
 msgstr "[Yleinen] 1994 (4500 RPM)"
+
+msgid "[Generic] 1995 (5200 RPM)"
+msgstr "[Yleinen] 1995 (5200 RPM)"
 
 msgid "[Generic] 1996 (5400 RPM)"
 msgstr "[Yleinen] 1996 (5400 RPM)"
@@ -2886,6 +2952,9 @@ msgstr "[Yleinen] 1998 (5400 RPM)"
 
 msgid "[Generic] 2000 (7200 RPM)"
 msgstr "[Yleinen] 2000 (7200 RPM)"
+
+msgid "[Generic] 2004 (10000 RPM)"
+msgstr "[Yleinen] 2004 (10000 RPM)"
 
 msgid "IBM 8514/A clone"
 msgstr "IBM 8514/A-klooni"
@@ -2937,6 +3006,15 @@ msgstr "Malli"
 
 msgid "Model:"
 msgstr "Malli:"
+
+msgid "Brand:"
+msgstr ""
+
+msgid "Revision:"
+msgstr ""
+
+msgid "[Generic HDD] Device Configuration"
+msgstr ""
 
 msgid "Failed to initialize Vulkan renderer."
 msgstr "Vulkan-rendereriä ei voitu alustaa."
@@ -3255,6 +3333,12 @@ msgstr "&Pikakelaus"
 msgid "Fast forward"
 msgstr "Pikakelaus"
 
+msgid "&Non-maskable interrupt"
+msgstr ""
+
+msgid "Non-maskable interrupt"
+msgstr ""
+
 msgid "To change the system directory, stop all running machines."
 msgstr "Järjestelmähakemiston muuttamiseksi pysäytä kaikki käynnissä olevat koneet."
 
@@ -3434,4 +3518,82 @@ msgid "938 (Traditional Chinese)"
 msgstr "938 (perinteinen kiina)"
 
 msgid "Sample rate:"
+msgstr ""
+
+msgid "Enable audio input (mic/line-in)"
+msgstr ""
+
+msgid "Audio input device:"
+msgstr ""
+
+msgid "Audio input sample rate:"
+msgstr ""
+
+msgid "Rate the emulator mixes to the host output device."
+msgstr ""
+
+msgid "Rate the host input capture device is opened at.\n\n44100 divides evenly by SB16/AWE32 rates of 44.1/22/11 kHz."
+msgstr ""
+
+msgid "CGA lightpen"
+msgstr ""
+
+msgid "Luminance threshold (%)"
+msgstr ""
+
+msgid "VFIO: Could not open /dev/vfio/vfio: %s. Make sure the vfio-pci module is loaded."
+msgstr ""
+
+msgid "VFIO %s: Invalid device location."
+msgstr ""
+
+msgid "VFIO %s: Device not found."
+msgstr ""
+
+msgid "VFIO %s: Device has no IOMMU group. Make sure VT-d or IOMMU is enabled on your system."
+msgstr ""
+
+msgid "VFIO %s: Device is not bound to vfio-pci."
+msgstr ""
+
+msgid "VFIO %s: Could not open IOMMU group %d: %s"
+msgstr ""
+
+msgid "VFIO %s: IOMMU group %d is not viable. All devices in the group must be bound to vfio-pci."
+msgstr ""
+
+msgid "VFIO: Could not map guest memory for DMA: %s. The locked memory limit (ulimit -l) may be too low."
+msgstr ""
+
+msgid "VFIO %s: Could not read ROM file \"%s\"; using the device's own ROM."
+msgstr ""
+
+msgid "VFIO %s: Could not read ROM file \"%s\"; the ROM is disabled."
+msgstr ""
+
+msgid "VFIO %s: The ROM looks invalid. A custom ROM can be loaded through the VFIO settings."
+msgstr ""
+
+msgid "VFIO: These devices must be bound to vfio-pci, which requires administrator rights:\n\n%s\nBind them now?"
+msgstr ""
+
+msgid "VFIO: Administrator rights are required to give 86Box access to the passed-through devices. Continue?"
+msgstr ""
+
+msgid "These devices were not selected, but share an IOMMU group with a selected device, so they will be bound as well:"
+msgstr ""
+
+msgid "VFIO %s: IOMMU group %d also contains %s, which the host needs. The group will not be bound to vfio-pci."
+msgstr ""
+
+msgid "VFIO: Could not prepare the devices for passthrough:\n%s"
+msgstr ""
+
+msgid "VFIO: Administrator rights could not be requested. To prepare the devices for passthrough, run this command, then hard reset:\n\n%s"
+msgstr ""
+
+msgid "Prepare PCI devices for VFIO passthrough"
+msgstr ""
+
+msgid "Authentication is required to prepare PCI devices for passthrough to 86Box."
 msgstr ""

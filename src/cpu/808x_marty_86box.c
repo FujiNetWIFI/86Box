@@ -1538,6 +1538,9 @@ extern uint32_t   cpu_data;
 #define SEG_CHECK_READ(seg)
 #define SEG_CHECK_WRITE(seg)
 #define CHECK_READ(a, b, c)
+#define CHECK_READ_EA(n)
+#define PROBE_READ_EA(n)
+#define CHECK_WRITE_EA(n)
 #define CHECK_WRITE(a, b, c)
 #define UN_USED(x) (void) (x)
 #define fetch_ea_16(val)
@@ -1708,6 +1711,8 @@ m808x_86box_fpu_exec(const uint8_t op, uint8_t modrm,
         default: easeg = ds; break;
     }
 
+    x87_op = ((op & 0x07) << 8) | (modrm & 0xff);
+
     if (!hasfpu) {
         if (cpu_mod != 3)
             (void) readmemw(easeg, ea);
@@ -1736,6 +1741,14 @@ m808x_86box_fpu_exec(const uint8_t op, uint8_t modrm,
             default: break;
         }
     }
+
+    cpu_state.fpu_op = x87_op;
+    cpu_state.fpu_CS = cpu_state.temp_CS;
+    cpu_state.fpu_cs = cpu_state.temp_cs;
+    cpu_state.fpu_pc = cpu_state.temp_pc;
+    cpu_state.fpu_DS = saved_easeg >> 4;
+    cpu_state.fpu_ds = saved_easeg;
+    cpu_state.fpu_ea = cpu_state.eaaddr;
 
     cpu_state.pc = saved_pc;
     cpu_state.rm_data.rm_mod_reg_data = saved_rm_data;
@@ -2094,6 +2107,11 @@ decode_instruction(m808x_cpu_t *icpu)
     icpu->ins.instruction_ip = architectural_ip(icpu);
     icpu->in_lock = false;
     icpu->rep_prefix = 0u;
+
+    /* Temp variables for FPU exception reporting. */
+    cpu_state.temp_CS = icpu->segs[SEG_CS];
+    cpu_state.temp_cs = cpu_state.temp_CS << 4;
+    cpu_state.temp_pc = icpu->ins.instruction_ip;
 
     uint8_t iopcode = queue_read(icpu, true);
 
@@ -4864,6 +4882,30 @@ execx86_new(int cycs)
 
     while (cpu_state._cycles > 0 && !m808x_cpu.fatal) {
         m808x_update_input_pins();
+
+        /* A board may hold the CPU clock on a part that supports it. Keep
+         * continuous peripherals running; the CPU does not execute. This
+         * engine's clock-stop compatibility remains unverified. */
+        if (is80c88 && cpu_clock_gated && (cpu_clock_stop_query != NULL)) {
+            if (cpu_clock_stop_query()) {
+                const int idle = cpu_state._cycles > 64 ? 64 : cpu_state._cycles;
+                cpu_state._cycles -= idle;
+                tsc += (uint64_t) idle * ((uint64_t) xt_cpu_multi >> 32ULL);
+                if (TIMER_VAL_LESS_THAN_VAL(timer_target, (uint64_t) tsc))
+                    timer_process();
+                m808x_86box_export_arch_state(&m808x_cpu);
+                continue;
+            }
+            if (m808x_cpu.nmi_pin) {
+                m808x_cpu.interrupt_vector = 2u;
+                hardware_interrupt(&m808x_cpu, false);
+                m808x_consume_host_nmi();
+                biu_fetch_next(&m808x_cpu);
+            } else if (m808x_cpu.intr_pin && (m808x_cpu.flags & I_FLAG)) {
+                hardware_interrupt(&m808x_cpu, true);
+                biu_fetch_next(&m808x_cpu);
+            }
+        }
 
         if (m808x_cpu.waiting) {
             if (!m808x_cpu.test_pin) {
