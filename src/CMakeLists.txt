@@ -366,6 +366,8 @@ endif()
 if (FUJINET_ANDROID)
     add_subdirectory(android)
 elseif (EMBEDDED_HOST)
+    # No VM manager or shader settings: the SDL UI's code paths.
+    add_compile_definitions(USE_SDL_UI)
     add_subdirectory(${EMBEDDED_HOST_DIR} embedded_host)
 elseif (QT)
     add_subdirectory(qt)
